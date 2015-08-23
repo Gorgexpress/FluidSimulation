@@ -124,8 +124,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="CFDSimulation.cpp" />
+    <ClCompile Include="MarchingCubes.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CFDSimulation.h" />
+    <ClInclude Include="MarchingCubes.h" />
     <ClInclude Include="OpenGLException.h" />
     <ClInclude Include="SDLException.h" />
   </ItemGroup>

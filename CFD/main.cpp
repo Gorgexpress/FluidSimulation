@@ -14,6 +14,8 @@
 #include <sstream>
 #include <iterator>
 #include <vector>
+#include "MarchingCubes.h"
+#include "CFDSimulation.h"
 #pragma comment(lib, "GLEW/glew32.lib")
 #pragma comment(lib, "SDL/x64/sdl2.lib")
 #pragma comment(lib, "opengl32.lib")
@@ -108,13 +110,19 @@ GLuint gVAO;
 GLuint gVBO;
 GLuint gIBO;
 
-//Handles for shader variables
-GLint gProjectionLoc, gViewLoc, gTranslationLoc, gRotationLoc, gScalingLoc;
 
 //matrices
 glm::mat4 gProjection, gView;
+//rotation quaternion
 glm::quat gQuat;
+//scaling vector
+glm::vec3 gScale;
 
+//vector of triangles
+std::vector<TRIANGLE> gTriangles;
+
+//Simulation
+CFDSimulation gSim;
 
 void init(){
 	//Initialize SDL
@@ -161,6 +169,8 @@ void init(){
 		std::cerr << "Could not use Vsync";
 	}
 
+	//Reserve space for our vector of triangles
+	gTriangles.reserve(5000);
 	//Initialize OpenGL
 	initGL();
 
@@ -183,17 +193,19 @@ void initGL(){
 	//Create Vertex Buffer Object
 	glGenBuffers(1, &gVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, gVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(gVertexData), gVertexData, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE)*5000, &gTriangles[0], GL_DYNAMIC_DRAW);
 
 	gQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 	//remove this later
 	gProjection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
 	gView = glm::lookAt(
-		glm::vec3(4.0f, 3.0f, 3.0f),
+		glm::vec3(0.0f, 0.0f, 5.0f),
 		glm::vec3(0.0f, 0.0f, 0.0f),
 		glm::vec3(0.0f, 1.0f, 0.0f)
 		);
+	gScale = glm::vec3(1.0f, 1.0f, 1.0f);
 
+	glEnable(GL_DEPTH);
 }
 
 GLuint compileShader(const char* srcPath, GLenum shaderType){
@@ -269,11 +281,11 @@ void render(){
 	//Set background color to black and clear the screen
 	glm::mat4 translation = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
 	glm::mat4 rotation = glm::mat4_cast(gQuat);
-	glm::mat4 scaling = glm::scale(glm::mat4(), glm::vec3(1.0f, 1.0f, 1.0f));
+	glm::mat4 scaling = glm::scale(glm::mat4(), gScale);
 	glm::mat4 model = translation * rotation * scaling;
 	glm::mat4 MVP = gProjection * gView * model;
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT); 
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); 
 
 	//Use our shader program
 	glUseProgram(gProgramID);
@@ -294,7 +306,25 @@ void render(){
 }
 
 void handleKeyDownEvent(SDL_Keycode key){
-	;
+	switch (key)
+	{
+	case SDLK_x:
+		if (gScale.x < 3.0f)
+		{
+			gScale.x += 0.1f;
+			gScale.y += 0.1f;
+			gScale.z += 0.1f;
+		}
+		break;
+	case SDLK_z:
+		if (gScale.x > 0.2f)
+		{
+			gScale.x -= 0.1f;
+			gScale.y -= 0.1f;
+			gScale.z -= 0.1f;
+		}
+		break;
+	}
 }
 void handleMouseButtonDownEvent(Uint8 button){
 	if (button == SDL_BUTTON_LEFT)
@@ -312,8 +342,8 @@ void handleMouseButtonUpEvent(Uint8 button){
 
 
 void handleMouseMotionEvent(Sint32 xrel, Sint32 yrel){
-	glm::quat rot(1.0f, xrel*0.01f, yrel*0.01f, 0.0f);
-	gQuat *= rot;
+	glm::quat rot(1.0f, yrel*0.01f, xrel*0.01f, 0.0f);
+	gQuat = rot * gQuat;
 	gQuat = glm::normalize(gQuat);
 }
 

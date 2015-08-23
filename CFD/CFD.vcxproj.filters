@@ -18,12 +18,24 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="CFDSimulation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="MarchingCubes.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="OpenGLException.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SDLException.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CFDSimulation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="MarchingCubes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
