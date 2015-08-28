@@ -1,5 +1,5 @@
 #include "CFDSimulation.h"
-
+#include <iostream>
 CFDSimulation::CFDSimulation(){
 	//Initialize the simulation using the default constants defined in the header
 	resize(DEFAULT_FLUID_WIDTH, DEFAULT_FLUID_HEIGHT, DEFAULT_FLUID_DEPTH);
@@ -8,12 +8,13 @@ CFDSimulation::CFDSimulation(){
 	//Hard code setting up the marker particles for testing
 	for (int x = 1; x < mWidth - 1; ++x)
 		for (int y = 1; y < 15; ++y)
-			for (int z = 1; z < mDepth - 1; ++z)
+			//for (int z = 1; z < mDepth - 1; ++z)
 			{
-				mFluid[Index(x, y, z)] = true;
-				mMarkerParticles.push_back(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f));
+				mFluid[Index(x, y, 15)] = true;
+				mMarkerParticles.push_back(glm::vec3(x + 0.5f , y + 0.5f, 15 + 0.5f));
 				
 			}
+	mVelocity[Index(10, 10, 15)] = glm::vec3(10.0f,0.0f,0.0f);
 }
 
 CFDSimulation::CFDSimulation(int width, int height, int depth){
@@ -22,6 +23,10 @@ CFDSimulation::CFDSimulation(int width, int height, int depth){
 }
 
 void CFDSimulation::update(float dt){
+	for (int x = 1; x < mWidth - 1; ++x)
+		for (int y = 1; y < 15; ++y)
+			std::cout << mPressure[Index(x, y, 15)] << std::endl;
+	updateParticles(dt);
 	advectVelocity(dt);
 	diffuseVelocity();
 	project();
@@ -32,9 +37,11 @@ void CFDSimulation::updateParticles(float dt)
 	for (auto &p : mMarkerParticles)
 	{
 		//no safety checks for now, nothing should even be moving
-		glm::vec3 newPosition = mVelocity[(Index(static_cast<int>(p.x), static_cast<int>(p.y), static_cast<int>(p.z)))] * dt;
+		glm::vec3 newPosition = p + mVelocity[(Index(static_cast<int>(p.x), static_cast<int>(p.y), static_cast<int>(p.z)))] * dt;
 		p = newPosition;
+
 	}
+	int i = 0;
 }
 void CFDSimulation::resize(int width, int height, int depth){
 	//Set the width, height, and depth
@@ -54,9 +61,9 @@ void CFDSimulation::resize(int width, int height, int depth){
 
 void CFDSimulation::advectVelocity(float dt){
 	//for every voxel
-	for (int x = 0; x < mWidth; ++x)
-		for (int y = 0; y < mHeight; ++y)
-			for (int z = 0; z < mDepth; ++z)
+	for (int x = 1; x < mWidth - 1; ++x)
+		for (int y = 1; y < mHeight - 1; ++y)
+			for (int z = 1; z < mDepth - 1; ++z)
 			{
 				//Predict where the current voxel of fluid was last time step 
 				//by using (previous position) = (current position) - velocity * dt.
@@ -77,7 +84,7 @@ void CFDSimulation::advectVelocity(float dt){
 				//positive direction(right, above, forward)
 				float wx1 = x1 - prevPosition.x;
 				float wy1 = y1 - prevPosition.y;
-				float wz1 = z1 - prevPosition.x;
+				float wz1 = z1 - prevPosition.z;
 
 				//negative direction is just 1.0 - positive direction weight in this case
 				float wx0 = 1.0f - wx1;
@@ -88,7 +95,7 @@ void CFDSimulation::advectVelocity(float dt){
 				mVelocityBuffer[Index(x, y, z)] = (wx1 * wy1 * wz1 * mVelocity[Index(x1, y1, z1)] + wx1 * wy1 * wz0 * mVelocity[Index(x1, y1, z0)] +
 					wx1 * wy0 * wz1 * mVelocity[Index(x1, y0, z1)] + wx0 * wy1 * wz1 * mVelocity[Index(x0, y1, z1)] +
 					wx1 * wy0 * wz0 * mVelocity[Index(x1, y0, z0)] + wx0 * wy1 * wz0 * mVelocity[Index(x0, y1, z0)] +
-					wx0 * wy0 * wz1 * mVelocity[Index(x0, y0, z1)] + wx0 * wy0 * wz0 * mVelocity[Index(x0, y0, z0)]) / 8.0f;
+					wx0 * wy0 * wz1 * mVelocity[Index(x0, y0, z1)] + wx0 * wy0 * wz0 * mVelocity[Index(x0, y0, z0)]);
 
 			
 			
@@ -100,16 +107,16 @@ void CFDSimulation::advectVelocity(float dt){
 void CFDSimulation::diffuseVelocity(){
 	for (int it = 20; it > 0; --it)
 	{
-		for (int x = 0; x < mWidth; ++x)
-			for (int y = 0; y < mHeight; ++y)
-				for (int z = 0; z < mDepth; ++z)
+		for (int x = 1; x < mWidth - 1; ++x)
+			for (int y = 1; y < mHeight - 1; ++y)
+				for (int z = 1; z < mDepth - 1; ++z)
 				{
 					//calculate the divergence of the velocity for this cell
 					float divergence = ((mVelocity[Index(x + 1, y, z)].x - mVelocity[Index(x - 1, y, z)].x)
 						+ (mVelocity[Index(x, y + 1, z)].y - mVelocity[Index(x, y - 1, z)].y)
 						+ (mVelocity[Index(x, y, z + 1)].z - mVelocity[Index(x, y, z - 1)].z)) / 2.0f;
 					//Calculate the updated velocity and place it in the buffer.
-					mVelocityBuffer[Index(x, y, z)] = (mVelocity[Index(x + 1, y, z)] - mVelocity[Index(x - 1, y, z)]
+					mVelocityBuffer[Index(x, y, z)] = (mVelocity[Index(x + 1, y, z)] + mVelocity[Index(x - 1, y, z)]
 						+ mVelocity[Index(x, y + 1, z)] + mVelocity[Index(x, y - 1, z)]
 						+ mVelocity[Index(x, y, z + 1)] + mVelocity[Index(x, y, z - 1)]
 						- divergence) / 6.0f;
@@ -126,9 +133,9 @@ void CFDSimulation::diffuseVelocity(){
 
 void CFDSimulation::advectQuantity(std::vector<float>& q, float dt){
 	//for every voxel
-	for (int x = 0; x < mWidth; ++x)
-		for (int y = 0; y < mHeight; ++y)
-			for (int z = 0; z < mDepth; ++z)
+	for (int x = 1; x < mWidth - 1; ++x)
+		for (int y = 1; y < mHeight - 1; ++y)
+			for (int z = 1; z < mDepth - 1; ++z)
 			{
 				//Predict where the current voxel of fluid was last time step 
 				//by using (previous position) = (current position) - velocity * dt.
@@ -149,7 +156,7 @@ void CFDSimulation::advectQuantity(std::vector<float>& q, float dt){
 				//positive direction(right, above, forward)
 				float wx1 = x1 - prevPosition.x;
 				float wy1 = y1 - prevPosition.y;
-				float wz1 = z1 - prevPosition.x;
+				float wz1 = z1 - prevPosition.z;
 
 				//negative direction is just 1.0 - positive direction weight in this case
 				float wx0 = 1.0f - wx1;
@@ -159,9 +166,9 @@ void CFDSimulation::advectQuantity(std::vector<float>& q, float dt){
 		
 				//Do trilinear interpolation of the quantity
 				q[Index(x, y, z)] = (wx1 * wy1 * wz1 * q[Index(x1, y1, z1)] + wx1 * wy1 * wz0 * q[Index(x1, y1, z0)] +
-				wx1 * wy0 * wz1 * q[Index(x1, y0, z1)] + wx0 * wy1 * wz1 * q[Index(x0, y1, z1)] +
-				wx1 * wy0 * wz0 * q[Index(x1, y0, z0)] + wx0 * wy1 * wz0 * q[Index(x0, y1, z0)] +
-				wx0 * wy0 * wz1 * q[Index(x0, y0, z1)] + wx0 * wy0 * wz0 * q[Index(x0, y0, z0)]) / 8.0f;
+					wx1 * wy0 * wz1 * q[Index(x1, y0, z1)] + wx0 * wy1 * wz1 * q[Index(x0, y1, z1)] +
+					wx1 * wy0 * wz0 * q[Index(x1, y0, z0)] + wx0 * wy1 * wz0 * q[Index(x0, y1, z0)] +
+					wx0 * wy0 * wz1 * q[Index(x0, y0, z1)] + wx0 * wy0 * wz0 * q[Index(x0, y0, z0)]);
 				
 			}
 }
@@ -169,16 +176,16 @@ void CFDSimulation::advectQuantity(std::vector<float>& q, float dt){
 void CFDSimulation::diffuseQuantity(std::vector<float>& q){
 	for (int it = 20; it > 0; --it)
 	{
-		for (int x = 0; x < mWidth; ++x)
-			for (int y = 0; y < mHeight; ++y)
-				for (int z = 0; z < mDepth; ++z)
+		for (int x = 1; x < mWidth - 1; ++x)
+			for (int y = 1; y < mHeight - 1; ++y)
+				for (int z = 1; z < mDepth - 1; ++z)
 				{
 					//calculate the divergence of the velocity for this cell
 					float divergence = ((mVelocity[Index(x + 1, y, z)].x - mVelocity[Index(x - 1, y, z)].x)
 						+ (mVelocity[Index(x, y + 1, z)].y - mVelocity[Index(x, y - 1, z)].y)
 						+ (mVelocity[Index(x, y, z + 1)].z - mVelocity[Index(x, y, z - 1)].z)) / 2.0f;
 					//Calculate the updated value of the quantity and place it in the buffer.
-					mBuffer[Index(x, y, z)] = (q[Index(x + 1, y, z)] - q[Index(x - 1, y, z)]
+					mBuffer[Index(x, y, z)] = (q[Index(x + 1, y, z)] + q[Index(x - 1, y, z)]
 						+ q[Index(x, y + 1, z)] + q[Index(x, y - 1, z)]
 						+ q[Index(x, y, z + 1)] + q[Index(x, y, z - 1)]
 						- divergence) / 6.0f;
@@ -188,6 +195,9 @@ void CFDSimulation::diffuseQuantity(std::vector<float>& q){
 		q.swap(mBuffer);
 	}
 }
+
+
+
 
 void CFDSimulation::project(){
 	//calculate the divergence of velocity for every cell, store it in a buffer
@@ -211,7 +221,7 @@ void CFDSimulation::project(){
 			for (int y = 1; y < mHeight - 1; ++y)
 				for (int z = 1; z < mDepth - 1; ++z)
 				{
-					mBuffer2[Index(x, y, z)] = (mPressure[Index(x + 1, y, z)] - mPressure[Index(x - 1, y, z)]
+					mBuffer2[Index(x, y, z)] = (mPressure[Index(x + 1, y, z)] + mPressure[Index(x - 1, y, z)]
 						+ mPressure[Index(x, y + 1, z)] + mPressure[Index(x, y - 1, z)]
 						+ mPressure[Index(x, y, z + 1)] + mPressure[Index(x, y, z - 1)]
 						- mBuffer[Index(x, y, z)]) / 6.0f;
@@ -268,6 +278,16 @@ void CFDSimulation::setBoundariesVelocity(std::vector<glm::vec3>& velocity){
 			//Front boundary
 			velocity[Index(x, y, mDepth - 1)] = -velocity[Index(x, y, mDepth - 2)];
 		}
+
+	//Set corners
+	velocity[Index(0, 0, 0)] = (velocity[Index(1, 0, 0)] + velocity[Index(0, 1, 0)] + velocity[Index(0, 0, 1)]) / 3.0f;
+	velocity[Index(mWidth - 1, 0, 0)] = (velocity[Index(mWidth - 2, 0, 0)] + velocity[Index(mWidth - 1, 1, 0)] + velocity[Index(mWidth - 1, 0, 1)]) / 3.0f;
+	velocity[Index(0, mHeight - 1, 0)] = (velocity[Index(1, mHeight - 1, 0)] + velocity[Index(0, mHeight - 2, 0)] + velocity[Index(0, mHeight - 1, 1)]) / 3.0f;
+	velocity[Index(0, 0, mDepth - 1)] = (velocity[Index(1, 0, mDepth -1)] + velocity[Index(0, 1, mDepth - 1)] + velocity[Index(0, 0, mDepth - 2)]) / 3.0f;
+	velocity[Index(mWidth - 1, mHeight - 1, 0)] = (velocity[Index(mWidth - 2, mHeight - 1, 0)] + velocity[Index(mWidth - 1, mHeight - 2, 0)] + velocity[Index(mWidth - 1, mHeight - 1, 1)]) / 3.0f;
+	velocity[Index(mWidth - 1, 0, mDepth - 1)] = (velocity[Index(mWidth - 2, 0, mDepth - 1)] + velocity[Index(mWidth - 1, 1, mDepth - 1)] + velocity[Index(mWidth - 1, 0, mWidth - 2)]) / 3.0f;
+	velocity[Index(0, mHeight - 1, mDepth - 1)] = (velocity[Index(1, mHeight - 1, mDepth - 1)] + velocity[Index(0, mHeight - 2, mDepth - 1)] + velocity[Index(0, mHeight - 1, mDepth - 2)]) / 3.0f;
+	velocity[Index(mWidth - 1, mHeight - 1, mDepth - 1)] = (velocity[Index(mWidth - 2, mHeight - 1, mDepth - 1)] + velocity[Index(mWidth - 1, mHeight - 2, mDepth - 1)] + velocity[Index(mWidth - 1, mHeight - 1, mDepth - 2)]) / 3.0f;
 }
 
 void CFDSimulation::setBoundariesPressure(std::vector<float>& pressure){
@@ -303,5 +323,14 @@ void CFDSimulation::setBoundariesPressure(std::vector<float>& pressure){
 			//Front boundary
 			pressure[Index(x, y, mDepth - 1)] = pressure[Index(x, y, mDepth - 2)];
 		}
+
+	pressure[Index(0, 0, 0)] = (pressure[Index(1, 0, 0)] + pressure[Index(0, 1, 0)] + pressure[Index(0, 0, 1)]) / 3.0f;
+	pressure[Index(mWidth - 1, 0, 0)] = (pressure[Index(mWidth - 2, 0, 0)] + pressure[Index(mWidth - 1, 1, 0)] + pressure[Index(mWidth - 1, 0, 1)]) / 3.0f;
+	pressure[Index(0, mHeight - 1, 0)] = (pressure[Index(1, mHeight - 1, 0)] + pressure[Index(0, mHeight - 2, 0)] + pressure[Index(0, mHeight - 1, 1)]) / 3.0f;
+	pressure[Index(0, 0, mDepth - 1)] = (pressure[Index(1, 0, mDepth - 1)] + pressure[Index(0, 1, mDepth - 1)] + pressure[Index(0, 0, mDepth - 2)]) / 3.0f;
+	pressure[Index(mWidth - 1, mHeight - 1, 0)] = (pressure[Index(mWidth - 2, mHeight - 1, 0)] + pressure[Index(mWidth - 1, mHeight - 2, 0)] + pressure[Index(mWidth - 1, mHeight - 1, 1)]) / 3.0f;
+	pressure[Index(mWidth - 1, 0, mDepth - 1)] = (pressure[Index(mWidth - 2, 0, mDepth - 1)] + pressure[Index(mWidth - 1, 1, mDepth - 1)] + pressure[Index(mWidth - 1, 0, mWidth - 2)]) / 3.0f;
+	pressure[Index(0, mHeight - 1, mDepth - 1)] = (pressure[Index(1, mHeight - 1, mDepth - 1)] + pressure[Index(0, mHeight - 2, mDepth - 1)] + pressure[Index(0, mHeight - 1, mDepth - 2)]) / 3.0f;
+	pressure[Index(mWidth - 1, mHeight - 1, mDepth - 1)] = (pressure[Index(mWidth - 2, mHeight - 1, mDepth - 1)] + pressure[Index(mWidth - 1, mHeight - 2, mDepth - 1)] + pressure[Index(mWidth - 1, mHeight - 1, mDepth - 2)]) / 3.0f;
 }
 

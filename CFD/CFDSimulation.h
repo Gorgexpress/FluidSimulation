@@ -17,6 +17,7 @@ public:
 	CFDSimulation();
 	CFDSimulation(int width, int height, int depth);
 	void update(float dt);
+	const std::vector<glm::vec3>& markerParticles() const { return mMarkerParticles; }
 private:
 	std::vector<glm::vec3> mVelocity, mVelocityBuffer;
 	std::vector<float> mPressure, mBuffer, mBuffer2;

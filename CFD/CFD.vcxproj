@@ -73,6 +73,10 @@
     <LibraryPath>$(SolutionDir)external/lib/;$(LibraryPath)</LibraryPath>
     <IncludePath>$(SolutionDir)external/include;$(IncludePath)</IncludePath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(SolutionDir)external/include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(SolutionDir)external/lib/;$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -123,12 +127,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="FluidSim.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="CFDSimulation.cpp" />
     <ClCompile Include="MarchingCubes.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CFDSimulation.h" />
+    <ClInclude Include="FluidSim.h" />
     <ClInclude Include="MarchingCubes.h" />
     <ClInclude Include="OpenGLException.h" />
     <ClInclude Include="SDLException.h" />

@@ -146,9 +146,9 @@ void MarchingCubes::genField(const std::vector<glm::vec3>& particles, float radi
 		if (lowerZ < lowestZ) lowestZ = lowerZ;
 		if (higherZ > highestZ) highestZ = higherZ;
 	}
-	for (int x = lowestX; x < highestX; x += VOXEL_SIZE)
-		for (int y = lowestY; y < highestY; y += VOXEL_SIZE)
-			for (int z = lowestZ; z < highestZ; z += VOXEL_SIZE){
+	for (float x = lowestX; x < highestX; x += VOXEL_SIZE)
+		for (float y = lowestY; y < highestY; y += VOXEL_SIZE)
+			for (float z = lowestZ; z < highestZ; z += VOXEL_SIZE){
 				GRIDCELL cell;
 				setGridCellValue(grid, cell, 0, x, y, z + VOXEL_SIZE);
 				setGridCellValue(grid, cell, 1, x + VOXEL_SIZE, y, z + VOXEL_SIZE);
@@ -160,7 +160,7 @@ void MarchingCubes::genField(const std::vector<glm::vec3>& particles, float radi
 				setGridCellValue(grid, cell, 7, x, y + VOXEL_SIZE, z);
 				Polygonise(cell, 0.0001, triangles);
 			}
-
+	int i = 0;
 }
 
 inline void MarchingCubes::setFieldValue(std::map<glm::vec3, double, vecComparators>& grid, glm::vec3& particle, glm::vec3& point){
@@ -176,7 +176,7 @@ inline void MarchingCubes::setFieldValue(std::map<glm::vec3, double, vecComparat
 
 
 
-inline void MarchingCubes::setGridCellValue(std::map<glm::vec3, double, vecComparators>& grid, GRIDCELL& cell, int index, int x, int y, int z){
+inline void MarchingCubes::setGridCellValue(std::map<glm::vec3, double, vecComparators>& grid, GRIDCELL& cell, int index, float x, float y, float z){
 	cell.p[index].x = x;
 	cell.p[index].y = y;
 	cell.p[index].z = z;

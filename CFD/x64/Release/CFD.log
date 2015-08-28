@@ -1,0 +1,42 @@
+﻿Build started 8/23/2015 5:37:28 AM.
+     1>Project "C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\CFD\CFD.vcxproj" on node 2 (Build target(s)).
+     1>ClCompile:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\CL.exe /c /Zi /nologo /W3 /WX- /sdl /O2 /Oi /GL /D _MBCS /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"x64\Release\\" /Fd"x64\Release\vc120.pdb" /Gd /TP /errorReport:prompt main.cpp CFDSimulation.cpp MarchingCubes.cpp
+         main.cpp
+     1>main.cpp(305): warning C4267: 'argument' : conversion from 'size_t' to 'GLsizei', possible loss of data
+         CFDSimulation.cpp
+         MarchingCubes.cpp
+     1>MarchingCubes.cpp(112): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>MarchingCubes.cpp(113): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>MarchingCubes.cpp(114): warning C4244: '=' : conversion from 'double' to 'float', possible loss of data
+     1>MarchingCubes.cpp(124): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(125): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(126): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(127): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(128): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(129): warning C4244: 'initializing' : conversion from 'float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(132): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(134): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(136): warning C4244: '=' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(149): warning C4244: '+=' : conversion from 'const float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(150): warning C4244: '+=' : conversion from 'const float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(151): warning C4244: '+=' : conversion from 'const float' to 'int', possible loss of data
+     1>MarchingCubes.cpp(153): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(154): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(155): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(156): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(157): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(159): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+     1>MarchingCubes.cpp(160): warning C4244: 'argument' : conversion from 'int' to 'float', possible loss of data
+       Link:
+         C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\x64\Release\CFD.exe" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\x64\Release\CFD.pdb" /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\x64\Release\CFD.lib" /MACHINE:X64 x64\Release\main.obj
+         x64\Release\CFDSimulation.obj
+         x64\Release\MarchingCubes.obj
+         Generating code
+         Finished generating code
+         CFD.vcxproj -> C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\x64\Release\CFD.exe
+     1>Done Building Project "C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\CFD\CFD.vcxproj" (Build target(s)).
+
+Build succeeded.
+
+Time Elapsed 00:00:03.21
