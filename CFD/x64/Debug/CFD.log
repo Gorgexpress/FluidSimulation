@@ -1,11 +1,11 @@
-﻿Build started 8/26/2015 11:01:44 PM.
+﻿Build started 9/6/2015 9:41:43 PM.
      1>Project "C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\CFD\CFD.vcxproj" on node 2 (Build target(s)).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\CL.exe /c /Zi /nologo /W3 /WX- /sdl /Od /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"x64\Debug\\" /Fd"x64\Debug\vc120.pdb" /Gd /TP /errorReport:prompt FluidSim.cpp
          FluidSim.cpp
-     1>FluidSim.cpp(349): warning C4267: 'initializing' : conversion from 'size_t' to 'int', possible loss of data
-     1>FluidSim.cpp(361): warning C4018: '<' : signed/unsigned mismatch
-     1>FluidSim.cpp(418): warning C4267: 'argument' : conversion from 'size_t' to 'GLsizei', possible loss of data
+     1>FluidSim.cpp(343): warning C4267: 'argument' : conversion from 'size_t' to 'GLsizei', possible loss of data
+     1>FluidSim.cpp(552): warning C4267: 'initializing' : conversion from 'size_t' to 'int', possible loss of data
+     1>FluidSim.cpp(564): warning C4018: '<' : signed/unsigned mismatch
        Link:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\x64\Debug\CFD.exe" /INCREMENTAL /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\x64\Debug\CFD.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\Michael\Documents\Visual Studio 2013\Projects\CFD\x64\Debug\CFD.lib" /MACHINE:X64 x64\Debug\FluidSim.obj
          x64\Debug\main.obj
@@ -16,4 +16,4 @@
 
 Build succeeded.
 
-Time Elapsed 00:00:01.56
+Time Elapsed 00:00:01.87

@@ -31,6 +31,12 @@ private:
 	//Initialize OpenGL
 	void initGL();
 
+	//Initialize all OpenGL objects(VAO, VBOs, FBO, etc..)
+	void initGLObjects();
+
+	void initGLTextures();
+
+	void getAllUniformLocations();
 	/*
 	Compiles a shader
 	@param srcPath the path to the shader file
@@ -47,7 +53,14 @@ private:
 	*/
 	GLuint linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID);
 
-	//Load image using libpng
+	/*
+	Load image using libpng
+	@param path the path to the png file
+	@param imageData the vector of png_bytes to store the image data. Any data already existing in the
+	vector will be cleared out.
+	@return a pair of ints containing the width and height of the image respectively.
+	If there was an error, first will be set to -1. 
+	*/
 	std::pair<int, int> loadImage(const char* path, std::vector<png_byte>& imageData);
 
 	//Main render loop
@@ -62,9 +75,6 @@ private:
 	//End and clean up the simulation and SDL+OpenGL
 	void shutdown();
 
-	//custom read function for pnglib. It's a C library and need a custom function to read from C++ structures
-	static void readFunction(png_structp pngPtr, png_bytep data, png_size_t length);
-
 	//The window we'll be rendering too
 	SDL_Window* mWindow;
 
@@ -74,17 +84,27 @@ private:
 	//SDL renderer for textures
 	SDL_Renderer *renderer;
 
-	//Shader Program
-	std::array<GLuint, 2> mProgramID;
+	//Shader Programs
+	GLuint mProgramFluid, mProgramStatic;
 
 	//Vertex Array Object
 	GLuint mVAO;
 
 	//Vertex Buffer Objects
-	std::array<GLuint, 3> mVBOs;
+	GLuint mVBOs; //static draw VBO
+	GLuint mIBOs; //static draw indices
+	GLuint mVBOf; //dynamic VBO for fluid vertices
+
 
 	//Textures
-	GLuint mTexture, mTexture2;
+	GLuint mCubeMap;
+
+	//Uniform locations
+	GLint mUniformLocMVPf, mUniformLocMVPs; //MVP matrix for fluid and static shaders
+	GLint mUniformLocM;  // Model Matrix
+	GLint mUniformLocV; // View Matrix
+	GLint mUniformLocCubeMaps;
+	GLint mUniformLocCubeMapf;
 
 	//matrices
 	glm::mat4 mProjection, mView;
@@ -93,10 +113,13 @@ private:
 	//scaling vector
 	glm::vec3 mScale;
 
-	//vector of triangles that form the fluid
+	//std::vector of triangles that form the fluid. Vertices and normals interleaved. 
 	std::vector<TRIANGLE> mTriangles;
 
 	//Simulation
 	CFDSimulation mSim;
+
+	//Width and Height of window
+	int mWidth, mHeight;
 };
 #endif

@@ -25,43 +25,36 @@ const char* FLUID_FRAGMENT_SHADER_PATH = "shaders/cube_150.glslf";
 const char* TEXTURE_PATH = "floor_diamond_tileIII.png";
 const char* TEXTURE_WALL_PATH = "stone wall 3.png";
 
-//Constants for VBO array indices
-const int VBO_STATIC_VERTICES = 0; //Will be used for the floor, walls, anything that doesn't change
-const int VBO_STATIC_INDICES = 1;
-const int VBO_FLUID_VERTICES = 2;
 
-//Constants for ProgramID array indices
-const int STATIC_PROGRAM = 0;
-const int FLUID_PROGRAM = 1;
 
 const GLfloat STATIC_VERTICES[] = {
-	//floor
-	-50.0f, 0.0f, -50.0f, 0.0f, 0.0f, //back left: 0
-	-50.0f, 0.0f, 50.0f, 0.0f, 1.0f, //front left: 1
-	50.0f, 0.0f, -50.0f, 1.0f, 0.0f, //back right: 2
-	50.0f, 0.0f, 50.0f, 1.0f, 1.0f, //front right: 3
-	//back wall
-	-50.0f, 50.0f, -50.0f, 0.0f, 1.0f, //back left: 4
-	50.0f, 50.0f, -50.0f, 1.0f, 1.0f, //back right: 5
-	//left wall
-	-50.0f, 0.0f, 50.0f, 1.0f, 0.0f, // lower front left: 6
-	-50.0f, 50.0f, 50.0f, 1.0f, 1.0f, // front left: 7
-	//right wall
-	50.0f, 0.0f, 50.0f, 0.0f, 0.0f, //lower front right: 8
-	50.0f, 50.0f, 50.0f, 0.0f, 1.0f, // upper front right: 9
-	//front wall
+	-1.0f, -1.0f, 1.0f, //0
+	-1.0f, 1.0f, 1.0f, //1
+	1.0f, 1.0f, 1.0f, //2
+	1.0f, -1.0f, 1.0f,//3
+	-1.0f, -1.0f, -1.0f, //4
+	-1.0f, 1.0f, -1.0f,//5
+	1.0f, 1.0f, -1.0f,//6
+	1.0f, -1.0f, -1.0f//7
 };
 
 const GLushort STATIC_INDICES[] = {
-	0, 1, 2, 3, 2, 1,
-	0, 2, 4, 5, 4, 2,
-	4, 6, 0, 6, 4, 7,
-	8, 9, 2, 5, 2, 9,
-	8, 6, 9, 7, 9, 6
-
+	0, 2, 1, 0, 3, 2,
+	4, 3, 0, 4, 7, 3,
+	4, 1, 5, 4, 0, 1,
+	3, 6, 2, 3, 7, 6,
+	1, 6, 5, 1, 2, 6,
+	7, 5, 6, 7, 4,5
 };
-FluidSim::FluidSim(){
 
+//Position of camera in worldspace.
+const glm::vec3 CAMERA_POS(10.0f, 15.0f, -30.0f);
+
+
+//set size variables to defaults
+FluidSim::FluidSim(){
+	mWidth = DEFAULT_WINDOW_WIDTH;
+	mHeight = DEFAULT_WINDOW_HEIGHT;
 }
 
 FluidSim::~FluidSim(){
@@ -112,9 +105,11 @@ void FluidSim::init(){
 		std::cerr << "Could not use Vsync";
 	}
 
+	glGetError(); //discard single 1280 error that glew always causes on initialization
+
+	
 	//Initialize our sim, we arent gonna update it yet so just get whatever info we need right away
-	MarchingCubes mcubes;
-	mcubes.genField(mSim.markerParticles(), 0.5f, mTriangles);
+	genField(mSim.markerParticles(), 0.5f, mTriangles);
 
 	//Initialize OpenGL
 	initGL();
@@ -130,77 +125,94 @@ void FluidSim::initGL(){
 	GLuint fragmentShaderID = compileShader(STATIC_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
 
 	//Create the program and link the shaders to it
-	mProgramID[STATIC_PROGRAM] = linkProgram(vertexShaderID, fragmentShaderID);
-
+	mProgramStatic = linkProgram(vertexShaderID, fragmentShaderID);
 	//Compile the vertex and fragment shaders for the fluid shader program
 	vertexShaderID = compileShader(FLUID_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	fragmentShaderID = compileShader(FLUID_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
 
 	//Create the program and link the shaders to it
-	mProgramID[FLUID_PROGRAM] = linkProgram(vertexShaderID, fragmentShaderID);
+	mProgramFluid = linkProgram(vertexShaderID, fragmentShaderID);
 
-	//Create a vertex array object
-	glGenVertexArrays(1, &mVAO);
-	glBindVertexArray(mVAO);
-
-	//Create Vertex Buffer Object
-	glGenBuffers(3, &mVBOs[0]);
-
-	//Bind static vertices buffer
-	glBindBuffer(GL_ARRAY_BUFFER, mVBOs[VBO_STATIC_VERTICES]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(STATIC_VERTICES), STATIC_VERTICES, GL_STATIC_DRAW);
-
-	//Bind static indices buffer
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mVBOs[VBO_STATIC_INDICES]);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(STATIC_INDICES), STATIC_INDICES, GL_STATIC_DRAW);
+	initGLObjects();
 
 
-	//Bind Fluid Vertices buffer
-	glBindBuffer(GL_ARRAY_BUFFER, mVBOs[VBO_FLUID_VERTICES]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 100000, nullptr, GL_DYNAMIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE) *mTriangles.size(), &mTriangles[0]);
+	initGLTextures();
 
-	//Load the png we are using for a texture
-	std::vector<png_byte> imageData;
-	std::pair<int, int> widthAndHeight = loadImage(TEXTURE_PATH, imageData);
-
-	//Generate the OpenGL texture 
-	glGenTextures(1, &mTexture);
-	glBindTexture(GL_TEXTURE_2D, mTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	//Load the png we are using for a texture
-	widthAndHeight = loadImage(TEXTURE_WALL_PATH, imageData);
-
-	//Generate the OpenGL texture 
-	glGenTextures(1, &mTexture2);
-	glBindTexture(GL_TEXTURE_2D, mTexture2);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	getAllUniformLocations();
 
 	//initialize our quaternion
 	mQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 	//remove this later
-	mProjection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 100.0f);
+	mProjection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 1000.0f);
 	mView = glm::lookAt(
-		glm::vec3(0.0f, 0.0f, 50.0f),
-		glm::vec3(10.0f, 10.0f, 10.0f),
+		CAMERA_POS,
+		glm::vec3(10.0f, 5.0f, 0.0f),
 		glm::vec3(0.0f, 1.0f, 0.0f)
 		);
 	mScale = glm::vec3(1.0f, 1.0f, 1.0f);
-
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
-	glEnable(GL_CULL_FACE);
 
 }
 
+void FluidSim::initGLObjects(){
+	//Create a vertex array object
+	glGenVertexArrays(1, &mVAO);
+	glBindVertexArray(mVAO);
+
+	//Initialize VBO for static vertices(wall and floor)
+	glGenBuffers(1, &mVBOs);
+	glBindBuffer(GL_ARRAY_BUFFER, mVBOs);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(STATIC_VERTICES), STATIC_VERTICES, GL_STATIC_DRAW);
+
+	//Initialize VBO for indices for static vertices
+	glGenBuffers(1, &mIBOs);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBOs);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(STATIC_INDICES), STATIC_INDICES, GL_STATIC_DRAW);
+
+	//Initialize VBO for fluid vertices
+	glGenBuffers(1, &mVBOf);
+	glBindBuffer(GL_ARRAY_BUFFER, mVBOf);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 300000, nullptr, GL_DYNAMIC_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE) *mTriangles.size(), &mTriangles[0]);
+
+	
+}
+
+void FluidSim::initGLTextures(){
+	//Load floor texture
+	std::vector<png_byte> imageData;
+	std::pair<int, int> widthAndHeight = loadImage(TEXTURE_PATH, imageData);
+
+	//Initialize floor texture
+	glGenTextures(1, &mCubeMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, mCubeMap);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
+
+	widthAndHeight = loadImage(TEXTURE_WALL_PATH, imageData);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Y, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
+	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+
+
+
+}
+
+void FluidSim::getAllUniformLocations(){
+	mUniformLocMVPs = glGetUniformLocation(mProgramStatic, "MVP");
+	mUniformLocMVPf = glGetUniformLocation(mProgramFluid, "MVP");
+	mUniformLocM = glGetUniformLocation(mProgramFluid, "M");
+	mUniformLocCubeMaps = glGetUniformLocation(mProgramStatic, "cubeMap");
+	mUniformLocCubeMapf = glGetUniformLocation(mProgramFluid, "cubeMap");
+}
 GLuint FluidSim::compileShader(const char* srcPath, GLenum shaderType){
 	//Create the shader
 	GLuint shaderID = glCreateShader(shaderType);
@@ -270,168 +282,80 @@ GLuint FluidSim::linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID){
 	return programID;
 }
 
-std::pair<int,int> FluidSim::loadImage(const char* path, std::vector<png_byte>& imageData){
-	
-	imageData.clear();
-
-	//pnglib is a C library, so it's easier to stick to C structures. Can change this later if
-	std::ifstream in(path, std::ios::in | std::ios::binary);
-	if (!in)
-	{
-		std::cerr << "Could not open file at " << path << std::endl;
-		return std::pair<int, int>(-1, 0);
-	}
-
-	png_byte header[8];
-	
-	in.read(reinterpret_cast<char*>(header), 8);
-
-	if (png_sig_cmp(header, 0, 8))
-	{
-		std::cerr << "File at " << path << "is not a PNG" << std::endl;
-		in.close();
-		return std::pair<int, int>(-1, 1);
-	}
-
-	png_structp pngPtr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	if (!pngPtr)
-	{
-		std::cerr << "png_create_read_struct returned 0" << std::endl;
-		in.close();
-		return std::pair<int, int>(-1, 2);
-	}
-
-	png_infop infoPtr = png_create_info_struct(pngPtr);
-	if (!infoPtr)
-	{
-		std::cerr << "png_create_info_struct returned 0" << std::endl;
-		png_destroy_read_struct(&pngPtr, (png_infopp)NULL, (png_infopp)NULL);
-		in.close();
-		return std::pair<int, int>(-1, 3);
-	}
-	png_infop endInfo = png_create_info_struct(pngPtr);
-	if (!endInfo)
-	{
-		std::cerr << "png_create_info_struct returned 0" << std::endl;
-		png_destroy_read_struct(&pngPtr, &infoPtr, (png_infopp)NULL);
-		in.close();
-		return std::pair<int, int>(-1, 4);
-	}
-
-	if (setjmp(png_jmpbuf(pngPtr)))
-	{
-		std::cerr << "error from libpng" << std::endl;
-		png_destroy_read_struct(&pngPtr, &infoPtr, &endInfo);
-		in.close();
-		return std::pair<int, int>(-1, 5);
-	}
-
-	//set read function
-	png_set_read_fn(pngPtr, reinterpret_cast<png_voidp>(&in), FluidSim::readFunction);
-
-	//let libpng know you already read the first 8 bytes
-	png_set_sig_bytes(pngPtr, 8); 
-
-	//read all the info up to the image data
-	png_read_info(pngPtr, infoPtr);
-
-	//variables to pass to get info
-	int bitDepth, colorType;
-	png_uint_32 tempWidth, tempHeight;
-
-	//get info about the png
-	png_get_IHDR(pngPtr, infoPtr, &tempWidth, &tempHeight, &bitDepth, &colorType, NULL, NULL, NULL);
-
-	//update png info struct
-	png_read_update_info(pngPtr, infoPtr);
-
-	//row size in bytes
-	int rowBytes = png_get_rowbytes(pngPtr, infoPtr);
-
-	//glTexImage2d requires rows to be 4-byte aligned
-	//rowBytes += 3 - ((rowBytes - 1) % 4);
-
-	//Allocate the image data as a big block to be given to opengl
-	imageData.resize(rowBytes * tempHeight + 15);
-
-	//row pointers is for pointing to image data for reading the png with libpng
-	std::vector<png_bytep> rowPointers(tempHeight);
-
-	//Set the individual row pointers to point at the correct offsets of the image data
-	for (int i = 0; i < tempHeight; ++i)
-		rowPointers[tempHeight - 1 - i] = &imageData[i * rowBytes];
-	
-	//Read the png into the image data through the row pointers
-	png_read_image(pngPtr, &rowPointers[0]);
-
-	png_destroy_read_struct(&pngPtr, &infoPtr, (png_infopp)0);
-	in.close();
-	return std::pair<int, int>(tempWidth, tempHeight);
-}
 void FluidSim::render(){
 
-	//Set background color to black and clear the screen
+	//Generate MVP matrix for the room.
 	glm::mat4 translation = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
-	glm::mat4 rotation = glm::mat4_cast(mQuat);
-	glm::mat4 scaling = glm::scale(glm::mat4(), mScale);
+	glm::mat4 rotation = glm::mat4(1.0f);
+	glm::mat4 scaling = glm::scale(glm::mat4(), glm::vec3(50.0f, 50.0f, 50.0f)); 
 	glm::mat4 model = translation * rotation * scaling;
 	glm::mat4 MVP = mProjection * mView * model;
+
+
+	//use our static shader program
+	glUseProgram(mProgramStatic);
+	//Clear Buffer
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	//DRAW THE FLOOR
-	//use our static shader program
-	glUseProgram(mProgramID[STATIC_PROGRAM]);
+	//Send the shader our MVP matrix
+	glUniformMatrix4fv(mUniformLocMVPs, 1, GL_FALSE, &MVP[0][0]);
 
-	GLint location = glGetUniformLocation(mProgramID[STATIC_PROGRAM], "MVP");
-	glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
-	location = glGetUniformLocation(mProgramID[STATIC_PROGRAM], "myTextureSampler");
-	//Set our active texture
+	//Bind the cube map texture then send it to the shader
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, mTexture);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, mTexture2);
-	glUniform1i(location, 0);
-	glEnableVertexAttribArray(0); //Attribute 0: vertices
-	glEnableVertexAttribArray(1); //Attribute 1: texture coords
-	glBindBuffer(GL_ARRAY_BUFFER, mVBOs[VBO_STATIC_VERTICES]);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), nullptr);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(sizeof(GLfloat) * 3));
+	glBindTexture(GL_TEXTURE_CUBE_MAP, mCubeMap);
+	glUniform1i(mUniformLocCubeMaps, 0);
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mVBOs[VBO_STATIC_INDICES]);
-	//Draw floor
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
-	glUniform1i(location, 1);
-	glDrawElements(GL_TRIANGLES, (sizeof(STATIC_INDICES) / sizeof(GLushort)) - 6, GL_UNSIGNED_SHORT, (GLvoid*)(sizeof(GLushort) * 6));
+	//Enable vertex attrib array 0, vertices, and bind the static vbo.
+	glEnableVertexAttribArray(0); 
+	glBindBuffer(GL_ARRAY_BUFFER, mVBOs);
 
-	glDisableVertexAttribArray(1);
-	//Use our shader program
-	glUseProgram(mProgramID[FLUID_PROGRAM]);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr); // vertices
 
-	location = glGetUniformLocation(mProgramID[FLUID_PROGRAM], "MVP");
-	glUniformMatrix4fv(location, 1, GL_FALSE, &MVP[0][0]);
-	//Attribute 0: vertices
-	glBindBuffer(GL_ARRAY_BUFFER, mVBOs[VBO_FLUID_VERTICES]);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+	//Bind IBO and draw the room
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBOs); 
+	glDrawElements(GL_TRIANGLES, sizeof(STATIC_INDICES) / sizeof(GLushort), GL_UNSIGNED_SHORT, nullptr);
 
-	//Render
+	//calculate MVP matrix for fluid
+	translation = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
+	rotation = glm::mat4_cast(mQuat);
+	scaling = glm::scale(glm::mat4(), mScale);
+	model = translation * rotation * scaling;
+	MVP = mProjection * mView * model;
+	
+	//Use our fluid shader program
+	glUseProgram(mProgramFluid);
+	glEnableVertexAttribArray(1); //Attribute 1 is normals, attribute 0 is still vertices.
+	//Send the uniforms to shader, the cubemap texture, MVP matrix, model matrix,and camera position.
+	glUniform1i(mUniformLocCubeMapf, 0);
+	glUniformMatrix4fv(mUniformLocMVPf, 1, GL_FALSE, &MVP[0][0]);
+	glUniformMatrix4fv(mUniformLocM, 1, GL_FALSE, &model[0][0]);
+	GLint location = glGetUniformLocation(mProgramFluid, "cameraPos");
+	glUniform3f(location, 10.0f, 15.0f, -30.0f);
+
+	glBindBuffer(GL_ARRAY_BUFFER, mVBOf); //bind VBO for fluid vertices
+
+	//Set attrib pointers for vertices and normals
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat)*6, nullptr); 
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 6, (GLvoid*)(sizeof(GLfloat) * 3));
+
+	//Render fluid
 	glDrawArrays(GL_TRIANGLES, 0, 3 * mTriangles.size());
 
-	//cleanup
-	glDisableVertexAttribArray(0);
-	glUseProgram(NULL);
+	//print any errors to console
 	GLenum err = glGetError();
 	while (err != GL_NO_ERROR)
 	{
 		std::cerr << err << std::endl;
 		err = glGetError();
 	}
+
 }
 
 void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 	switch (key)
 	{
-	case SDLK_x:
+	case SDLK_x: //increase scale of fluid
 		if (mScale.x < 3.0f)
 		{
 			mScale.x += 0.1f;
@@ -439,7 +363,7 @@ void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 			mScale.z += 0.1f;
 		}
 		break;
-	case SDLK_z:
+	case SDLK_z: //decrease scale of fluid
 		if (mScale.x > 0.2f)
 		{
 			mScale.x -= 0.1f;
@@ -447,12 +371,11 @@ void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 			mScale.z -= 0.1f;
 		}
 		break;
-	case SDLK_n:
-		mSim.update(0.2f);
-		MarchingCubes cubes;
+	case SDLK_n: //update simulation
+		mSim.update(0.5f);
 		mTriangles.clear();
-		cubes.genField(mSim.markerParticles(), 0.5f, mTriangles);
-		glBindBuffer(GL_ARRAY_BUFFER, mVBOs[0]);
+		genField(mSim.markerParticles(), 0.5f, mTriangles);
+		glBindBuffer(GL_ARRAY_BUFFER, mVBOf);
 		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE)*mTriangles.size(), &mTriangles[0]);
 		break;
 	}
@@ -480,9 +403,15 @@ void FluidSim::handleMouseMotionEvent(Sint32 xrel, Sint32 yrel){
 
 void FluidSim::shutdown(){
 	//Deallocate shader programs
-	for (auto programID : mProgramID)
-		glDeleteProgram(programID);
-
+	glDeleteProgram(mProgramFluid);
+	glDeleteProgram(mProgramStatic);
+	//Delete the cubemap texture
+	glDeleteTextures(1, &mCubeMap);
+	//Delete any opengl objects
+	glDeleteBuffers(1, &mVBOs);
+	glDeleteBuffers(1, &mVBOf);
+	glDeleteBuffers(1, &mIBOs);
+	glDeleteVertexArrays(1, &mVAO);
 	//Destroy the window
 	SDL_DestroyWindow(mWindow);
 	mWindow = nullptr;
@@ -540,7 +469,107 @@ void FluidSim::runSim(){
 	shutdown();
 }
 
-void FluidSim::readFunction(png_structp pngPtr, png_bytep data, png_size_t length){
-	png_voidp ioPtr = png_get_io_ptr(pngPtr);
-	reinterpret_cast<std::istream*>(ioPtr)->read(reinterpret_cast<char*>(data), length);
+std::pair<int, int> FluidSim::loadImage(const char* path, std::vector<png_byte>& imageData){
+	
+	imageData.clear();
+
+	
+	std::ifstream in(path, std::ios::in | std::ios::binary);
+	if (!in)
+	{
+		std::cerr << "Could not open file at " << path << std::endl;
+		return std::pair<int, int>(-1, 0);
+	}
+
+	png_byte header[8];
+
+	in.read(reinterpret_cast<char*>(header), 8);
+
+	if (png_sig_cmp(header, 0, 8))
+	{
+		std::cerr << "File at " << path << "is not a PNG" << std::endl;
+		in.close();
+		return std::pair<int, int>(-1, 1);
+	}
+
+	png_structp pngPtr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (!pngPtr)
+	{
+		std::cerr << "png_create_read_struct returned 0" << std::endl;
+		in.close();
+		return std::pair<int, int>(-1, 2);
+	}
+
+	png_infop infoPtr = png_create_info_struct(pngPtr);
+	if (!infoPtr)
+	{
+		std::cerr << "png_create_info_struct returned 0" << std::endl;
+		png_destroy_read_struct(&pngPtr, (png_infopp)NULL, (png_infopp)NULL);
+		in.close();
+		return std::pair<int, int>(-1, 3);
+	}
+	png_infop endInfo = png_create_info_struct(pngPtr);
+	if (!endInfo)
+	{
+		std::cerr << "png_create_info_struct returned 0" << std::endl;
+		png_destroy_read_struct(&pngPtr, &infoPtr, (png_infopp)NULL);
+		in.close();
+		return std::pair<int, int>(-1, 4);
+	}
+
+	if (setjmp(png_jmpbuf(pngPtr)))
+	{
+		std::cerr << "error from libpng" << std::endl;
+		png_destroy_read_struct(&pngPtr, &infoPtr, &endInfo);
+		in.close();
+		return std::pair<int, int>(-1, 5);
+	}
+
+	//define and set a custom read function, since pnglib doesnt know how to handle c++ structures.
+	auto readFunction = [](png_structp pngPtr, png_bytep data, png_size_t length) {
+		png_voidp ioPtr = png_get_io_ptr(pngPtr);
+		reinterpret_cast<std::istream*>(ioPtr)->read(reinterpret_cast<char*>(data), length);
+	};
+	png_set_read_fn(pngPtr, reinterpret_cast<png_voidp>(&in), readFunction);
+
+	//let libpng know you already read the first 8 bytes
+	png_set_sig_bytes(pngPtr, 8);
+
+	//read all the info up to the image data
+	png_read_info(pngPtr, infoPtr);
+
+	//variables to pass to get info
+	int bitDepth, colorType;
+	png_uint_32 tempWidth, tempHeight;
+
+	//get info about the png
+	png_get_IHDR(pngPtr, infoPtr, &tempWidth, &tempHeight, &bitDepth, &colorType, NULL, NULL, NULL);
+
+	//update png info struct
+	png_read_update_info(pngPtr, infoPtr);
+
+	//row size in bytes
+	int rowBytes = png_get_rowbytes(pngPtr, infoPtr);
+
+	//glTexImage2d requires rows to be 4-byte aligned
+	rowBytes += 3 - ((rowBytes - 1) % 4);
+
+	//Allocate the image data as a big block to be given to opengl
+	imageData.resize(rowBytes * tempHeight + 15);
+
+	//row pointers is for pointing to image data for reading the png with libpng
+	std::vector<png_bytep> rowPointers(tempHeight);
+
+	//Set the individual row pointers to point at the correct offsets of the image data
+	for (int i = 0; i < tempHeight; ++i)
+		rowPointers[tempHeight - 1 - i] = &imageData[i * rowBytes];
+
+	//Read the png into the image data through the row pointers
+	png_read_image(pngPtr, &rowPointers[0]);
+
+	png_destroy_read_struct(&pngPtr, &infoPtr, (png_infopp)0);
+	in.close();
+	return std::pair<int, int>(tempWidth, tempHeight);
 }
+
+

@@ -8,13 +8,18 @@ CFDSimulation::CFDSimulation(){
 	//Hard code setting up the marker particles for testing
 	for (int x = 1; x < mWidth - 1; ++x)
 		for (int y = 1; y < 15; ++y)
-			//for (int z = 1; z < mDepth - 1; ++z)
+			for (int z = 1; z < mDepth - 1; ++z)
 			{
-				mFluid[Index(x, y, 15)] = true;
-				mMarkerParticles.push_back(glm::vec3(x + 0.5f , y + 0.5f, 15 + 0.5f));
+				mFluid[Index(x, y, z)] = true;
+				mMarkerParticles.push_back(glm::vec3(x + 0.5f , y + 0.5f, z + 0.5f));
 				
 			}
-	mVelocity[Index(10, 10, 15)] = glm::vec3(10.0f,0.0f,0.0f);
+	mVelocity[Index(10, 10, 15)] = glm::vec3(10.0f,5.0f,0.0f);
+	mVelocity[Index(10, 10, 14)] = glm::vec3(10.0f, 5.0f, 0.0f);
+	mVelocity[Index(10, 10, 13)] = glm::vec3(10.0f, 5.0f, 0.0f);
+	mVelocity[Index(10, 11, 14)] = glm::vec3(10.0f, 5.0f, 0.0f);
+	mVelocity[Index(10, 12, 13)] = glm::vec3(10.0f, 5.0f, 0.0f);
+	
 }
 
 CFDSimulation::CFDSimulation(int width, int height, int depth){
@@ -23,9 +28,6 @@ CFDSimulation::CFDSimulation(int width, int height, int depth){
 }
 
 void CFDSimulation::update(float dt){
-	for (int x = 1; x < mWidth - 1; ++x)
-		for (int y = 1; y < 15; ++y)
-			std::cout << mPressure[Index(x, y, 15)] << std::endl;
 	updateParticles(dt);
 	advectVelocity(dt);
 	diffuseVelocity();
