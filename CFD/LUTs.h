@@ -4,7 +4,7 @@
 
 
 namespace LUTS{
-	const GLint triTable[];
-	const GLint edgeTable[];
+	extern const GLint triTable[4096];
+	extern const GLint edgeTable[256];
 }
 #endif

@@ -5,7 +5,7 @@
 *.aps
 *.idb
 *.lastbuildstate
-*.lib
+//*.lib
 *.manifest
 *.pdb
 *.pch
@@ -14,3 +14,5 @@
 *.user
 *.ipch
 *.opensdf
+*.log
+*.ilk
