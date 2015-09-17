@@ -51,7 +51,7 @@ private:
 	@param fragmentShaderID id of fragment shader
 	@return the ID of the program
 	*/
-	GLuint linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID);
+	GLuint linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID);
 
 	/*
 	Load image using libpng
@@ -65,6 +65,10 @@ private:
 
 	//Main render loop
 	void render();
+
+	void genScalarField();
+	void genTriangleList();
+	void genVertices();
 
 	//Event handlers
 	void handleKeyDownEvent(SDL_Keycode key);
@@ -85,7 +89,7 @@ private:
 	SDL_Renderer *renderer;
 
 	//Shader Programs
-	GLuint mProgramFluid, mProgramStatic;
+	GLuint mProgramFluid, mProgramStatic, mProgramDensity, mProgramTest, mProgramListTriangles;
 
 	//Vertex Array Object
 	GLuint mVAO;
@@ -94,10 +98,14 @@ private:
 	GLuint mVBOs; //static draw VBO
 	GLuint mIBOs; //static draw indices
 	GLuint mVBOf; //dynamic VBO for fluid vertices
-
+	GLuint mFBO; //framebuffer
+	GLuint mTBO; //transform feedback
+	GLuint mUBO; //uniform buffer;
 
 	//Textures
 	GLuint mCubeMap;
+	GLuint mParticleTexture;
+	GLuint mScalarFieldTexture;
 
 	//Uniform locations
 	GLint mUniformLocMVPf, mUniformLocMVPs; //MVP matrix for fluid and static shaders
@@ -105,6 +113,12 @@ private:
 	GLint mUniformLocV; // View Matrix
 	GLint mUniformLocCubeMaps;
 	GLint mUniformLocCubeMapf;
+	GLint mUniformParticles;
+	GLint mUniformDimensions;
+	GLint mUniformnParticles;
+	GLint mUniformRadiusSquared;
+	GLint mUniformSField;
+	GLint mUniformDimensions3D;
 
 	//matrices
 	glm::mat4 mProjection, mView;

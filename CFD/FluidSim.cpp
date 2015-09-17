@@ -8,17 +8,28 @@
 #include <fstream>
 #include <sstream>
 #include <iterator>
-
+#include "LUTs.h"
 
 //Constants for default window width and height
 const int DEFAULT_WINDOW_WIDTH = 640;
 const int DEFAULT_WINDOW_HEIGHT = 480;
+
+//constants for fluid simulation dimensions
+const int SIM_WIDTH = 25;
+const int SIM_HEIGHT = 25;
+const int SIM_DEPTH = 25;
 
 //Constant for file paths to shaders
 const char* STATIC_VERTEX_SHADER_PATH = "shaders/static.glslv";
 const char* STATIC_FRAGMENT_SHADER_PATH = "shaders/static.glslf";
 const char* FLUID_VERTEX_SHADER_PATH = "shaders/cube_150.glslv";
 const char* FLUID_FRAGMENT_SHADER_PATH = "shaders/cube_150.glslf";
+const char* DENSITY_VERTEX_SHADER_PATH = "shaders/density.glslv";
+const char* DENSITY_FRAGMENT_SHADER_PATH = "shaders/density.glslf";
+const char* DENSITY_GEOMETRY_SHADER_PATH = "shaders/density.glslg";
+const char* TEST_VERTEX_SHADER_PATH = "shaders/test.glslv";
+const char* TEST_FRAGMENT_SHADER_PATH = "shaders/test.glslf";
+
 
 
 //Path to texture
@@ -28,6 +39,7 @@ const char* TEXTURE_WALL_PATH = "stone wall 3.png";
 
 
 const GLfloat STATIC_VERTICES[] = {
+	//cube
 	-1.0f, -1.0f, 1.0f, //0
 	-1.0f, 1.0f, 1.0f, //1
 	1.0f, 1.0f, 1.0f, //2
@@ -35,16 +47,25 @@ const GLfloat STATIC_VERTICES[] = {
 	-1.0f, -1.0f, -1.0f, //4
 	-1.0f, 1.0f, -1.0f,//5
 	1.0f, 1.0f, -1.0f,//6
-	1.0f, -1.0f, -1.0f//7
+	1.0f, -1.0f, -1.0f,//7
+	//quad
+	-1.0f, -1.0f, 0.0f,//8
+	-1.0f, 1.0f, 0.0f,//9
+	1.0f, 1.0f, 0.0f,//10
+	1.0f, -1.0f, 0.0f //11
 };
 
+
 const GLushort STATIC_INDICES[] = {
+	//cube
 	0, 2, 1, 0, 3, 2,
 	4, 3, 0, 4, 7, 3,
 	4, 1, 5, 4, 0, 1,
 	3, 6, 2, 3, 7, 6,
 	1, 6, 5, 1, 2, 6,
-	7, 5, 6, 7, 4,5
+	7, 5, 6, 7, 4, 5,
+	//quad
+	8, 9, 10, 8, 10, 11
 };
 
 //Position of camera in worldspace.
@@ -69,8 +90,8 @@ void FluidSim::init(){
 		throw SDLException(errorMessage);
 	}
 	//Use OpenGL 4.0 core
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 
 	//Create Window
@@ -110,7 +131,6 @@ void FluidSim::init(){
 	
 	//Initialize our sim, we arent gonna update it yet so just get whatever info we need right away
 	genField(mSim.markerParticles(), 0.5f, mTriangles);
-
 	//Initialize OpenGL
 	initGL();
 
@@ -125,18 +145,29 @@ void FluidSim::initGL(){
 	GLuint fragmentShaderID = compileShader(STATIC_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
 
 	//Create the program and link the shaders to it
-	mProgramStatic = linkProgram(vertexShaderID, fragmentShaderID);
+	mProgramStatic = linkProgram(vertexShaderID, fragmentShaderID, 0);
 	//Compile the vertex and fragment shaders for the fluid shader program
 	vertexShaderID = compileShader(FLUID_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	fragmentShaderID = compileShader(FLUID_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
 
 	//Create the program and link the shaders to it
-	mProgramFluid = linkProgram(vertexShaderID, fragmentShaderID);
+	mProgramFluid = linkProgram(vertexShaderID, fragmentShaderID, 0);
 
-	initGLObjects();
+	//geometry
+	vertexShaderID = compileShader(DENSITY_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
+	fragmentShaderID = compileShader(DENSITY_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
+	GLuint geometryShaderID = compileShader(DENSITY_GEOMETRY_SHADER_PATH, GL_GEOMETRY_SHADER);
+	//Create the program and link the shaders to it
+	mProgramDensity = linkProgram(vertexShaderID, fragmentShaderID, geometryShaderID);
 
-
+	
+	//Compile the vertex and fragment shaders for the fluid shader program
+	vertexShaderID = compileShader(TEST_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
+	fragmentShaderID = compileShader(TEST_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
+	//Create the program and link the shaders to it
+	mProgramTest = linkProgram(vertexShaderID, fragmentShaderID, 0);
 	initGLTextures();
+	initGLObjects();
 
 	getAllUniformLocations();
 
@@ -176,7 +207,31 @@ void FluidSim::initGLObjects(){
 	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 300000, nullptr, GL_DYNAMIC_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE) *mTriangles.size(), &mTriangles[0]);
 
-	
+	//Initialize transform feedback vbo
+	glGenBuffers(1, &mTBO);
+	glBindBuffer(GL_ARRAY_BUFFER, mTBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 100000, nullptr, GL_DYNAMIC_COPY);
+
+	//Initialize Uniform Buffer
+	glGenBuffers(1, &mUBO);
+	glBindBuffer(GL_UNIFORM_BUFFER, mUBO);
+	glBufferData(GL_UNIFORM_BUFFER, sizeof(GLint) * 4096 + 256, nullptr, GL_STATIC_DRAW);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(GLint) * 256, LUTS::edgeTable); 
+	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(GLint) * 256, sizeof(GLint) * 4096, LUTS::triTable);
+	GLint location = glGetUniformBlockIndex(mProgramListTriangles, "luts");
+	glUniformBlockBinding(mProgramListTriangles, location, 0);
+
+	//initialize framebuffer and give its output texture to it
+	glGenFramebuffers(1, &mFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, mFBO);
+	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, mScalarFieldTexture, 0);
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		throw  OpenGLException("fewfwfwef");
+	//set the list of draw buffers
+	GLenum drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, drawBuffers);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void FluidSim::initGLTextures(){
@@ -184,11 +239,12 @@ void FluidSim::initGLTextures(){
 	std::vector<png_byte> imageData;
 	std::pair<int, int> widthAndHeight = loadImage(TEXTURE_PATH, imageData);
 
-	//Initialize floor texture
+	//Initialize cube map
 	glGenTextures(1, &mCubeMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, mCubeMap);
 	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
 
+	//load texture for walls and ceiling, then send it to the rest of the cube map
 	widthAndHeight = loadImage(TEXTURE_WALL_PATH, imageData);
 	glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
 	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_X, 0, GL_RGB, widthAndHeight.first, widthAndHeight.second, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
@@ -201,8 +257,19 @@ void FluidSim::initGLTextures(){
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
+	//Initialize texture to store particle positions
+	glGenTextures(1, &mParticleTexture);
+	glBindTexture(GL_TEXTURE_2D, mParticleTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F_ARB, 10000, 1, 0, GL_RGB, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-
+	//Initialize texture to store scalar field
+	glGenTextures(1, &mScalarFieldTexture);
+	glBindTexture(GL_TEXTURE_3D, mScalarFieldTexture);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, SIM_WIDTH + 1, SIM_HEIGHT + 1, SIM_DEPTH + 1, 0, GL_RED, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 }
 
@@ -212,6 +279,12 @@ void FluidSim::getAllUniformLocations(){
 	mUniformLocM = glGetUniformLocation(mProgramFluid, "M");
 	mUniformLocCubeMaps = glGetUniformLocation(mProgramStatic, "cubeMap");
 	mUniformLocCubeMapf = glGetUniformLocation(mProgramFluid, "cubeMap");
+	mUniformParticles = glGetUniformLocation(mProgramDensity, "particles");
+	mUniformDimensions = glGetUniformLocation(mProgramDensity, "dimensions");
+	mUniformnParticles = glGetUniformLocation(mProgramDensity, "nParticles");
+	mUniformRadiusSquared = glGetUniformLocation(mProgramDensity, "radiusSquared");
+	mUniformSField = glGetUniformLocation(mProgramListTriangles, "sField");
+	mUniformDimensions3D = glGetUniformLocation(mProgramListTriangles, "dimensions");
 }
 GLuint FluidSim::compileShader(const char* srcPath, GLenum shaderType){
 	//Create the shader
@@ -248,14 +321,14 @@ GLuint FluidSim::compileShader(const char* srcPath, GLenum shaderType){
 	return shaderID;
 }
 
-GLuint FluidSim::linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID){
+GLuint FluidSim::linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID){
 	//Create the program
 	GLuint programID = glCreateProgram();
 
 	//Attach the vertex and fragment shaders
 	glAttachShader(programID, vertexShaderID);
 	glAttachShader(programID, fragmentShaderID);
-
+	if (geometryShaderID) glAttachShader(programID, geometryShaderID);
 	//Link the program
 	glLinkProgram(programID);
 
@@ -277,6 +350,11 @@ GLuint FluidSim::linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID){
 	glDeleteShader(vertexShaderID);
 	glDetachShader(programID, fragmentShaderID);
 	glDeleteShader(fragmentShaderID);
+	if (geometryShaderID)
+	{
+		glDetachShader(programID, geometryShaderID);
+		glDeleteShader(geometryShaderID);
+	}
 
 	//Return the successfully linked program
 	return programID;
@@ -352,6 +430,72 @@ void FluidSim::render(){
 
 }
 
+void FluidSim::genScalarField(){
+	//Render to framebuffer
+	glBindFramebuffer(GL_FRAMEBUFFER, mFBO);
+	glViewport(0, 0, SIM_WIDTH + 1, SIM_HEIGHT + 1);
+	glClear(GL_COLOR_BUFFER_BIT);
+	//use density shader program
+	glUseProgram(mProgramDensity);
+
+	//set uniforms
+	std::vector<glm::vec3> morestuff(10000);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, mParticleTexture);
+	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, &morestuff[0]);
+	glUniform1i(mUniformParticles, 0);
+
+	glUniform1i(mUniformnParticles, mSim.markerParticles().size());
+	glUniform2i(mUniformDimensions, SIM_WIDTH + 1, SIM_HEIGHT + 1); 
+	glUniform1f(mUniformRadiusSquared, 1.0f);
+
+	//draw
+	glDrawArrays(GL_POINTS, 0, SIM_DEPTH + 1);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, mWidth, mHeight);
+}
+
+void FluidSim::genTriangleList(){
+	//disable rasterizer
+	glEnable(GL_RASTERIZER_DISCARD);
+
+	//Set uniforms
+	
+
+	//set transform feedback varyings
+	const GLchar* feedbackVaryings[] = { "z6_y6_x6_edge1_edge2_edge3" };
+	glTransformFeedbackVaryings(mProgramListTriangles, 1, feedbackVaryings, GL_INTERLEAVED_ATTRIBS);
+	
+	//set uniforms
+	glUniform3i(mUniformDimensions3D, SIM_WIDTH, SIM_HEIGHT, SIM_DEPTH); //dimensions
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_3D, mScalarFieldTexture);
+	glUniform1i(mUniformSField, 0);  //3d texture containing the scalar field
+
+	//bind transform feedback buffer object. Only one tbo so we just use index 0.
+	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, mTBO);
+
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, mUBO);
+
+	//bind Uniform Buffer Object. Only one ubo so again we can just use index 0.
+	//end transform feedback mode using points
+	glBeginTransformFeedback(GL_POINTS);
+
+	//Draw call to write data into transform feedback buffer.
+	//Don't need input, just set the uniforms. One point for each position in scalar field grid.
+	glDrawArrays(GL_POINTS, 0, (SIM_WIDTH) * (SIM_HEIGHT) * (SIM_DEPTH));
+
+	//end transform feedback, flush, and renable rasterization.
+	glEndTransformFeedback();
+	glFlush();
+	glDisable(GL_RASTERIZER_DISCARD);;
+
+}
+
+void FluidSim::genVertices(){
+
+}
 void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 	switch (key)
 	{
@@ -378,7 +522,15 @@ void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 		glBindBuffer(GL_ARRAY_BUFFER, mVBOf);
 		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE)*mTriangles.size(), &mTriangles[0]);
 		break;
+	case SDLK_q:
+		glBindTexture(GL_TEXTURE_2D, mParticleTexture);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, mSim.markerParticles().size(), 1, GL_RGB, GL_FLOAT, &mSim.markerParticles()[0]);
+
+		genScalarField();
+		SDL_GL_SwapWindow(mWindow);
+		break;
 	}
+
 }
 void FluidSim::handleMouseButtonDownEvent(Uint8 button){
 	if (button == SDL_BUTTON_LEFT)
@@ -459,10 +611,10 @@ void FluidSim::runSim(){
 		}
 
 		//Render
-		render();
+		//render();
 
 		//Swap buffers
-		SDL_GL_SwapWindow(mWindow);
+		//SDL_GL_SwapWindow(mWindow);
 	}
 
 	//Free resources before ending the program

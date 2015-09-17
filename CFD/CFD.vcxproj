@@ -128,6 +128,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="FluidSim.cpp" />
+    <ClCompile Include="LUTs.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="CFDSimulation.cpp" />
     <ClCompile Include="MarchingCubes.cpp" />
@@ -135,6 +136,7 @@
   <ItemGroup>
     <ClInclude Include="CFDSimulation.h" />
     <ClInclude Include="FluidSim.h" />
+    <ClInclude Include="LUTs.h" />
     <ClInclude Include="MarchingCubes.h" />
     <ClInclude Include="OpenGLException.h" />
     <ClInclude Include="SDLException.h" />
