@@ -10,6 +10,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
 #include <array>
+#include <thread>
 #include "MarchingCubes.h"
 #include "CFDSimulation.h"
 
@@ -25,6 +26,42 @@ public:
 	void runSim();
 private:
 
+	enum BufferObjects{
+		FLUID,
+		ROOM_AB,
+		ROOM_EB,
+		FRAMEBUFFER,
+		TRIANGLE_LIST,
+		TRI_TABLE,
+		SIZE
+	};
+
+	enum Programs{
+		FLUID,
+		ROOM,
+		SFIELD,
+		LIST_TRIANGLES,
+		GEN_VERTICES,
+		SIZE
+	};
+
+	enum Uniforms{
+		FLUID_MVP,
+		FLUID_MODEL,
+		FLUID_VIEW,
+		ROOM_MVP,
+		ROOM_CUBE_MAP,
+		FLUID_CUBE_MAP,
+		SFIELD_PARTICLES,
+		SFIELD_NUMPARTICLES,
+		SFIELD_DIMENSIONS,
+		SFIELD_RADIUS_SQUARED,
+		LIST_TRIANGLES_DIMENSIONS,
+		LIST_TRIANGLES_SFIELD,
+		GEN_VERTICES_DIMENSIONS,
+		GEN_VERTICES_SFIELD,
+		SIZE
+	};
 	//Initialize the simulation
 	void init();
 	
@@ -51,6 +88,7 @@ private:
 	@param fragmentShaderID id of fragment shader
 	@return the ID of the program
 	*/
+	GLuint linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID, const GLchar* varyings[], int varyingsCount);
 	GLuint linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID);
 
 	/*
@@ -67,8 +105,8 @@ private:
 	void render();
 
 	void genScalarField();
-	void genTriangleList();
-	void genVertices();
+	GLuint genTriangleList();
+	GLuint genVertices(GLuint nPrimitives);
 
 	//Event handlers
 	void handleKeyDownEvent(SDL_Keycode key);
@@ -89,7 +127,7 @@ private:
 	SDL_Renderer *renderer;
 
 	//Shader Programs
-	GLuint mProgramFluid, mProgramStatic, mProgramDensity, mProgramTest, mProgramListTriangles;
+	GLuint mProgramFluid, mProgramStatic, mProgramDensity, mProgramTest, mProgramListTriangles, mProgramGenVertices;
 
 	//Vertex Array Object
 	GLuint mVAO;
@@ -100,10 +138,13 @@ private:
 	GLuint mVBOf; //dynamic VBO for fluid vertices
 	GLuint mFBO; //framebuffer
 	GLuint mTBO; //transform feedback
-	GLuint mUBO; //uniform buffer;
+	GLuint mEdgeTableBO;
+	GLuint mTriTableBO;
 
 	//Textures
 	GLuint mCubeMap;
+	GLuint mEdgeTable;
+	GLuint mTriTable;
 	GLuint mParticleTexture;
 	GLuint mScalarFieldTexture;
 
@@ -127,6 +168,11 @@ private:
 	//scaling vector
 	glm::vec3 mScale;
 
+	//query object
+	GLuint mQuery;
+
+	//number of triangles in fluid vbo
+	GLuint nTriangles;
 	//std::vector of triangles that form the fluid. Vertices and normals interleaved. 
 	std::vector<TRIANGLE> mTriangles;
 
@@ -135,5 +181,7 @@ private:
 
 	//Width and Height of window
 	int mWidth, mHeight;
+
+	std::thread mThreadSim;
 };
 #endif

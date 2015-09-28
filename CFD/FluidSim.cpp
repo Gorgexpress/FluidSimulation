@@ -8,6 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include <iterator>
+#include <thread>
 #include "LUTs.h"
 
 //Constants for default window width and height
@@ -29,6 +30,10 @@ const char* DENSITY_FRAGMENT_SHADER_PATH = "shaders/density.glslf";
 const char* DENSITY_GEOMETRY_SHADER_PATH = "shaders/density.glslg";
 const char* TEST_VERTEX_SHADER_PATH = "shaders/test.glslv";
 const char* TEST_FRAGMENT_SHADER_PATH = "shaders/test.glslf";
+const char* LIST_TRIANGLES_VERTEX_SHADER_PATH = "shaders/list_triangles.glslv";
+const char* LIST_TRIANGLES_GEOMETRY_SHADER_PATH = "shaders/list_triangles.glslg";
+const char* GEN_VERTICES_VERTEX_SHADER_PATH = "shaders/gen_vertices.glslv";
+const char* GEN_VERTICES_GEOMETRY_SHADER_PATH = "shaders/gen_vertices.glslg";
 
 
 
@@ -130,13 +135,18 @@ void FluidSim::init(){
 
 	
 	//Initialize our sim, we arent gonna update it yet so just get whatever info we need right away
-	genField(mSim.markerParticles(), 0.5f, mTriangles);
 	//Initialize OpenGL
 	initGL();
 
 	
 	//Disable polling of mouse motion events by default
 	SDL_EventState(SDL_MOUSEMOTION, SDL_IGNORE);
+
+	//Perform steps necessary to populate the VBO used to hold fluid vertices so we can render the fluid.
+	genScalarField();
+	mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.5f);
+	GLuint nPrimitives = genTriangleList();
+	nTriangles = genVertices(nPrimitives);
 }
 
 void FluidSim::initGL(){
@@ -153,7 +163,7 @@ void FluidSim::initGL(){
 	//Create the program and link the shaders to it
 	mProgramFluid = linkProgram(vertexShaderID, fragmentShaderID, 0);
 
-	//geometry
+	//density
 	vertexShaderID = compileShader(DENSITY_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	fragmentShaderID = compileShader(DENSITY_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
 	GLuint geometryShaderID = compileShader(DENSITY_GEOMETRY_SHADER_PATH, GL_GEOMETRY_SHADER);
@@ -161,11 +171,22 @@ void FluidSim::initGL(){
 	mProgramDensity = linkProgram(vertexShaderID, fragmentShaderID, geometryShaderID);
 
 	
-	//Compile the vertex and fragment shaders for the fluid shader program
-	vertexShaderID = compileShader(TEST_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
-	fragmentShaderID = compileShader(TEST_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
+	//list triangles
+	vertexShaderID = compileShader(LIST_TRIANGLES_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
+	geometryShaderID = compileShader(LIST_TRIANGLES_GEOMETRY_SHADER_PATH, GL_GEOMETRY_SHADER);
 	//Create the program and link the shaders to it
-	mProgramTest = linkProgram(vertexShaderID, fragmentShaderID, 0);
+	const GLchar* feedbackVaryings[] = { "z6_y6_x6_edge1_edge2_edge3" };
+	mProgramListTriangles = linkProgram(vertexShaderID, 0, geometryShaderID, feedbackVaryings, 1);
+
+	//gen vertices
+	vertexShaderID = compileShader(GEN_VERTICES_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
+	geometryShaderID = compileShader(GEN_VERTICES_GEOMETRY_SHADER_PATH, GL_GEOMETRY_SHADER);
+	//Create the program and link the shaders to it
+	const GLchar* feedbackVaryings2[] = { "vnVertice",
+										  "vnNormal"};
+	mProgramGenVertices = linkProgram(vertexShaderID, 0, geometryShaderID, feedbackVaryings2, 2);
+
+
 	initGLTextures();
 	initGLObjects();
 
@@ -204,22 +225,28 @@ void FluidSim::initGLObjects(){
 	//Initialize VBO for fluid vertices
 	glGenBuffers(1, &mVBOf);
 	glBindBuffer(GL_ARRAY_BUFFER, mVBOf);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 300000, nullptr, GL_DYNAMIC_DRAW);
-	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE) *mTriangles.size(), &mTriangles[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 300000, nullptr, GL_DYNAMIC_COPY);
+	//glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE) *mTriangles.size(), &mTriangles[0]);
 
 	//Initialize transform feedback vbo
 	glGenBuffers(1, &mTBO);
 	glBindBuffer(GL_ARRAY_BUFFER, mTBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 100000, nullptr, GL_DYNAMIC_COPY);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GLuint) * (SIM_WIDTH) * (SIM_HEIGHT) * (SIM_DEPTH) * 5, nullptr, GL_DYNAMIC_COPY);
 
-	//Initialize Uniform Buffer
-	glGenBuffers(1, &mUBO);
-	glBindBuffer(GL_UNIFORM_BUFFER, mUBO);
-	glBufferData(GL_UNIFORM_BUFFER, sizeof(GLint) * 4096 + 256, nullptr, GL_STATIC_DRAW);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(GLint) * 256, LUTS::edgeTable); 
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(GLint) * 256, sizeof(GLint) * 4096, LUTS::triTable);
-	GLint location = glGetUniformBlockIndex(mProgramListTriangles, "luts");
-	glUniformBlockBinding(mProgramListTriangles, location, 0);
+	//Initialize buffer textures for our marching cube lookup tables
+	glGenBuffers(1, &mEdgeTableBO);
+	glBindBuffer(GL_TEXTURE_BUFFER, mEdgeTableBO);
+	glBufferData(GL_TEXTURE_BUFFER, sizeof(LUTS::edgeTable), LUTS::edgeTable, GL_STATIC_READ);
+	glBindTexture(GL_TEXTURE_BUFFER, mEdgeTable);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32I, mEdgeTableBO);
+
+
+	glGenBuffers(1, &mTriTableBO);
+	glBindBuffer(GL_TEXTURE_BUFFER, mTriTableBO);
+	glBufferData(GL_TEXTURE_BUFFER, sizeof(LUTS::triTable), LUTS::triTable, GL_STATIC_READ);
+	glBindTexture(GL_TEXTURE_BUFFER, mTriTable);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32I, mTriTableBO);
+
 
 	//initialize framebuffer and give its output texture to it
 	glGenFramebuffers(1, &mFBO);
@@ -232,6 +259,9 @@ void FluidSim::initGLObjects(){
 	glDrawBuffers(1, drawBuffers);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	//Initialize Query Object
+	glGenQueries(1, &mQuery);
 }
 
 void FluidSim::initGLTextures(){
@@ -256,6 +286,11 @@ void FluidSim::initGLTextures(){
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	//Initialize buffer textures for our marching cube lookup tables
+	glGenTextures(1, &mEdgeTable);
+	glGenTextures(1, &mTriTable); 
+
 
 	//Initialize texture to store particle positions
 	glGenTextures(1, &mParticleTexture);
@@ -322,13 +357,23 @@ GLuint FluidSim::compileShader(const char* srcPath, GLenum shaderType){
 }
 
 GLuint FluidSim::linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID){
+	return linkProgram(vertexShaderID, fragmentShaderID, geometryShaderID, nullptr, 0);
+}
+
+GLuint FluidSim::linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID, const GLchar* varyings[], int varyingsCount){
 	//Create the program
 	GLuint programID = glCreateProgram();
 
 	//Attach the vertex and fragment shaders
 	glAttachShader(programID, vertexShaderID);
-	glAttachShader(programID, fragmentShaderID);
+	if (fragmentShaderID) glAttachShader(programID, fragmentShaderID);
 	if (geometryShaderID) glAttachShader(programID, geometryShaderID);
+
+	//setup varyings if there are any
+	if (varyingsCount > 0)
+		glTransformFeedbackVaryings(programID, varyingsCount, varyings, GL_INTERLEAVED_ATTRIBS);
+	
+	
 	//Link the program
 	glLinkProgram(programID);
 
@@ -348,8 +393,11 @@ GLuint FluidSim::linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLu
 	//Cleanup the shaders
 	glDetachShader(programID, vertexShaderID);
 	glDeleteShader(vertexShaderID);
-	glDetachShader(programID, fragmentShaderID);
-	glDeleteShader(fragmentShaderID);
+	if (fragmentShaderID)
+	{
+		glDetachShader(programID, fragmentShaderID);
+		glDeleteShader(fragmentShaderID);
+	}
 	if (geometryShaderID)
 	{
 		glDetachShader(programID, geometryShaderID);
@@ -392,7 +440,8 @@ void FluidSim::render(){
 
 	//Bind IBO and draw the room
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mIBOs); 
-	glDrawElements(GL_TRIANGLES, sizeof(STATIC_INDICES) / sizeof(GLushort), GL_UNSIGNED_SHORT, nullptr);
+
+	glDrawElements(GL_TRIANGLES, (sizeof(STATIC_INDICES) / sizeof(GLushort)) - 6, GL_UNSIGNED_SHORT, nullptr);
 
 	//calculate MVP matrix for fluid
 	translation = glm::translate(glm::mat4(), glm::vec3(0.0f, 0.0f, 0.0f));
@@ -412,13 +461,14 @@ void FluidSim::render(){
 	glUniform3f(location, 10.0f, 15.0f, -30.0f);
 
 	glBindBuffer(GL_ARRAY_BUFFER, mVBOf); //bind VBO for fluid vertices
-
+	std::vector<GLfloat> data(nTriangles * 2);
+	glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GL_FLOAT) * nTriangles * 2, &data[0]);
 	//Set attrib pointers for vertices and normals
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat)*6, nullptr); 
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 6, (GLvoid*)(sizeof(GLfloat) * 3));
 
 	//Render fluid
-	glDrawArrays(GL_TRIANGLES, 0, 3 * mTriangles.size());
+	glDrawArrays(GL_TRIANGLES, 0, nTriangles * 2);
 
 	//print any errors to console
 	GLenum err = glGetError();
@@ -439,10 +489,9 @@ void FluidSim::genScalarField(){
 	glUseProgram(mProgramDensity);
 
 	//set uniforms
-	std::vector<glm::vec3> morestuff(10000);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, mParticleTexture);
-	glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, &morestuff[0]);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, mSim.markerParticles().size(), 1, GL_RGB, GL_FLOAT, &mSim.markerParticles()[0]);
 	glUniform1i(mUniformParticles, 0);
 
 	glUniform1i(mUniformnParticles, mSim.markerParticles().size());
@@ -454,32 +503,39 @@ void FluidSim::genScalarField(){
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, mWidth, mHeight);
+
+	std::vector<GLfloat> dens((SIM_WIDTH + 1) * (SIM_HEIGHT + 1) * (SIM_DEPTH + 1));
+	glBindTexture(GL_TEXTURE_3D, mScalarFieldTexture);
+	glGetTexImage(GL_TEXTURE_3D, 0, GL_RED, GL_FLOAT, &dens[0]);
+	int a = 0;
 }
 
-void FluidSim::genTriangleList(){
+GLuint FluidSim::genTriangleList(){
 	//disable rasterizer
 	glEnable(GL_RASTERIZER_DISCARD);
-
+	glUseProgram(mProgramListTriangles);
 	//Set uniforms
 	
 
-	//set transform feedback varyings
-	const GLchar* feedbackVaryings[] = { "z6_y6_x6_edge1_edge2_edge3" };
-	glTransformFeedbackVaryings(mProgramListTriangles, 1, feedbackVaryings, GL_INTERLEAVED_ATTRIBS);
-	
 	//set uniforms
 	glUniform3i(mUniformDimensions3D, SIM_WIDTH, SIM_HEIGHT, SIM_DEPTH); //dimensions
 	glActiveTexture(GL_TEXTURE0);
+
 	glBindTexture(GL_TEXTURE_3D, mScalarFieldTexture);
 	glUniform1i(mUniformSField, 0);  //3d texture containing the scalar field
 
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_BUFFER, mTriTable);
+	GLint location = glGetUniformLocation(mProgramListTriangles, "triTable");
+	glUniform1i(location, 1);
 	//bind transform feedback buffer object. Only one tbo so we just use index 0.
 	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, mTBO);
 
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, mUBO);
+
 
 	//bind Uniform Buffer Object. Only one ubo so again we can just use index 0.
 	//end transform feedback mode using points
+	glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, mQuery);
 	glBeginTransformFeedback(GL_POINTS);
 
 	//Draw call to write data into transform feedback buffer.
@@ -488,12 +544,69 @@ void FluidSim::genTriangleList(){
 
 	//end transform feedback, flush, and renable rasterization.
 	glEndTransformFeedback();
+	glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+	GLuint nPrimitives;
+	glGetQueryObjectuiv(mQuery, GL_QUERY_RESULT, &nPrimitives);
 	glFlush();
-	glDisable(GL_RASTERIZER_DISCARD);;
+	glDisable(GL_RASTERIZER_DISCARD);
+
+	std::vector<GLuint> data(nPrimitives);
+	glBindBuffer(GL_ARRAY_BUFFER, mTBO);
+	glGetBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(GLuint) * nPrimitives, &data[0]);
+	std::vector<glm::ivec3> positions;
+	
+	for (auto &it : data)
+	{
+		unsigned int x = (it >> 14) & 0x3F;
+		unsigned int y = (it >> 20) & 0x3F;
+		unsigned int z = (it >> 26) & 0x3F;
+		positions.push_back(glm::ivec3(x, y, z));
+	}
+
+	return nPrimitives;
 
 }
 
-void FluidSim::genVertices(){
+GLuint FluidSim::genVertices(GLuint nPrimitives){
+	//disable rasterizer
+	glEnable(GL_RASTERIZER_DISCARD);
+
+	glUseProgram(mProgramGenVertices);
+
+	//uniforms
+	GLint location = glGetUniformLocation(mProgramGenVertices, "dimensions");
+	glUniform3i(location, SIM_WIDTH + 1, SIM_HEIGHT + 1, SIM_DEPTH + 1);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_3D, mScalarFieldTexture);
+	location = glGetUniformLocation(mProgramGenVertices, "sField");
+	glUniform1i(location, 0);  //3d texture containing the scalar field
+
+	//bind transform feedback buffer object. Only one tbo so we just use index 0.
+	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, mVBOf);
+
+	//setup attribs
+	glEnableVertexAttribArray(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, mTBO);
+	glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT,  0, 0);
+
+	glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, mQuery);
+	glBeginTransformFeedback(GL_POINTS);
+	//draw
+	glDrawArrays(GL_POINTS, 0, nPrimitives);
+
+	glEndTransformFeedback();
+	glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+	GLuint nPrimitives2;
+	glGetQueryObjectuiv(mQuery, GL_QUERY_RESULT, &nPrimitives2);
+	glFlush();
+	glDisable(GL_RASTERIZER_DISCARD);
+
+	std::vector<glm::vec3> data(nPrimitives2 * 2);
+	glBindBuffer(GL_ARRAY_BUFFER, mVBOf);
+	glGetBufferSubData(GL_ARRAY_BUFFER, 0, nPrimitives2 * 2 * sizeof(glm::vec3), &data[0]);
+
+	return nPrimitives2;
 
 }
 void FluidSim::handleKeyDownEvent(SDL_Keycode key){
@@ -611,10 +724,15 @@ void FluidSim::runSim(){
 		}
 
 		//Render
-		//render();
+		render();
 
 		//Swap buffers
-		//SDL_GL_SwapWindow(mWindow);
+		SDL_GL_SwapWindow(mWindow);
+
+		if (mThreadSim.joinable()){
+			mThreadSim.join();
+			genScalarField();
+		}
 	}
 
 	//Free resources before ending the program

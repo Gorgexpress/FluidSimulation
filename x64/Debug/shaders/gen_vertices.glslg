@@ -1,0 +1,32 @@
+#version 400 core
+
+struct vnpair{
+	vec3 vertex;
+	vec3 normal;
+};
+
+
+layout(points) in;
+layout(points, max_vertices = 3) out;
+
+in vertexData{
+	vnpair vertices[3];
+}vdata[];
+
+flat out vec3 vnVertice;
+flat out vec3 vnNormal;
+
+void main(){
+	vnVertice = vdata[0].vertices[0].vertex;
+	vnNormal = vdata[0].vertices[0].normal;
+	EmitVertex();
+	EndPrimitive();
+	vnVertice = vdata[0].vertices[1].vertex;
+	vnNormal = vdata[0].vertices[1].normal;
+	EmitVertex();
+	EndPrimitive();
+	vnVertice = vdata[0].vertices[2].vertex;
+	vnNormal = vdata[0].vertices[2].normal;
+	EmitVertex();
+	EndPrimitive();
+}

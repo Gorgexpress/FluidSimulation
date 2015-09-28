@@ -19,8 +19,8 @@ void main(){
 		float distance = dot(delta, delta);
 		if(distance <= radiusSquared)
 		{
-			//density += pow(1.0f - distance, 2);
-			density += 1.0f / distance;
+			density += pow(1.0f - distance, 2);
+			//density += 1.0f / distance;
 		}
 	}
 }

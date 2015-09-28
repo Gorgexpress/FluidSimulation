@@ -3,27 +3,26 @@
 layout(points) in;
 layout(points, max_vertices = 5) out;
 
+in uint z6_y6_x6_null6_cubeIndex8[];
 flat out uint z6_y6_x6_edge1_edge2_edge3;
 
-layout (std140) uniform luts{
-	int edgeTable[256];
-	int triTable[4096];
-};
+uniform isamplerBuffer triTable;
 
 void main(){
-	uint cubeIndex = gl_in[0].z6_y6_x6_null6_cubeIndex8 & 0xFF;
-	uint z6_y6_x6_null14 = gl_in[0].z6_y6_x6_null6_cubeIndex8 & 0xFFFFFF00;
+	uint cubeIndex = z6_y6_x6_null6_cubeIndex8[0] & 0xFF;
+	uint z6_y6_x6_null14 = z6_y6_x6_null6_cubeIndex8[0] & 0xFFFFFF00;
 	if (cubeIndex * (255 - cubeIndex) > 0)
 	{
-		int offset = 256 * cubeIndex;
-		for(int i = 0; triTable[offset + i] != -1; i += 3) 
+		int offset = int(16 * cubeIndex);
+		for(int i = 0; texelFetch(triTable, offset + i).r != -1; i += 3) 
 		{
-			z6_y6_x6_edge1_edge2_edge3 = (triTable[offset + i    ] << 8) |
-										 (triTable[offset + i + 1] << 4) |
-										 (triTable[offset + i + 2]     ) |
+			z6_y6_x6_edge1_edge2_edge3 = (texelFetch(triTable, offset + i    ).r << 8) |
+										 (texelFetch(triTable, offset + i + 1).r << 4) |
+										 (texelFetch(triTable, offset + i + 2).r     ) |
 										 (z6_y6_x6_null14 			   );
 			EmitVertex();
 			EndPrimitive();
 		}
 	}
+	
 }

@@ -295,7 +295,7 @@ static const int triTable[256][16] =
 
 const float BLOB_RADIUS = 1.0f;
 const float BLOB_RADIUS_SQUARED = 1.0f;
-const float VOXEL_SIZE = 0.5f;
+const float VOXEL_SIZE = 1.0f;
 
 
 
@@ -460,11 +460,11 @@ void genField(const std::vector<glm::vec3>& particles, float radius, std::vector
 		int lowerZ = floor(p.z - BLOB_RADIUS);
 		int higherZ = ceil(p.z + BLOB_RADIUS);
 		glm::vec3 point;
-		for (float x = lowerX; x <= higherX; x += 0.5f){
+		for (float x = lowerX; x <= higherX; x += VOXEL_SIZE){
 			point.x = x;
-			for (float y = lowerY; y <= higherY; y += 0.5f){
+			for (float y = lowerY; y <= higherY; y += VOXEL_SIZE){
 				point.y = y;
-				for (float z = lowerZ; z <= higherZ; z += 0.5f){
+				for (float z = lowerZ; z <= higherZ; z += VOXEL_SIZE){
 					point.z = z;
 					setFieldValue(grid, p, point);
 
