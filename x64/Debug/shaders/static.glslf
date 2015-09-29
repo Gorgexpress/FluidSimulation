@@ -1,4 +1,4 @@
-#version 330 core
+#version 400 core
 
 // Interpolated values from the vertex shaders
 in vec3 UV;
