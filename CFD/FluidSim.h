@@ -26,41 +26,57 @@ public:
 	void runSim();
 private:
 
-	enum BufferObjects{
-		FLUID,
-		ROOM_AB,
-		ROOM_EB,
-		FRAMEBUFFER,
-		TRIANGLE_LIST,
-		TRI_TABLE,
-		SIZE
+	//The following enums act as array indices for the std::arrays containing the buffer objects, programs, uniforms,
+	//and textures respectively
+	struct BufferObjects{
+		enum BufferObjectsEnum{
+			FLUID,
+			ROOM_AB,
+			ROOM_EB,
+			TRIANGLE_LIST,
+			TRI_TABLE,
+			SIZE
+		};
 	};
 
-	enum Programs{
-		FLUID,
-		ROOM,
-		SFIELD,
-		LIST_TRIANGLES,
-		GEN_VERTICES,
-		SIZE
+	struct Programs{
+		enum ProgramsEnum{
+			FLUID,
+			ROOM,
+			SFIELD,
+			LIST_TRIANGLES,
+			GEN_VERTICES,
+			SIZE
+		};
 	};
 
-	enum Uniforms{
-		FLUID_MVP,
-		FLUID_MODEL,
-		FLUID_VIEW,
-		ROOM_MVP,
-		ROOM_CUBE_MAP,
-		FLUID_CUBE_MAP,
-		SFIELD_PARTICLES,
-		SFIELD_NUMPARTICLES,
-		SFIELD_DIMENSIONS,
-		SFIELD_RADIUS_SQUARED,
-		LIST_TRIANGLES_DIMENSIONS,
-		LIST_TRIANGLES_SFIELD,
-		GEN_VERTICES_DIMENSIONS,
-		GEN_VERTICES_SFIELD,
-		SIZE
+	struct Uniforms{
+		enum UniformsEnum{
+			FLUID_MVP,
+			FLUID_MODEL,
+			FLUID_VIEW,
+			ROOM_MVP,
+			ROOM_CUBE_MAP,
+			FLUID_CUBE_MAP,
+			SFIELD_PARTICLES,
+			SFIELD_NUM_PARTICLES,
+			SFIELD_RADIUS_SQUARED,
+			LIST_TRIANGLES_DIMENSIONS,
+			LIST_TRIANGLES_SFIELD,
+			GEN_VERTICES_DIMENSIONS,
+			GEN_VERTICES_SFIELD,
+			SIZE
+		};
+	};
+
+	struct Textures{
+		enum TexturesEnum{
+			CUBE_MAP,
+			TRI_TABLE,
+			PARTICLES,
+			SFIELD,
+			SIZE
+		};
 	};
 	//Initialize the simulation
 	void init();
@@ -71,42 +87,21 @@ private:
 	//Initialize all OpenGL objects(VAO, VBOs, FBO, etc..)
 	void initGLObjects();
 
+	//Initialize the textures
 	void initGLTextures();
 
+	//Sets the uniform locations for the uniforms array
 	void getAllUniformLocations();
-	/*
-	Compiles a shader
-	@param srcPath the path to the shader file
-	@param shaderType the type of shader
-	@return the ID of the shader
-	*/
-	GLuint compileShader(const char* srcPath, GLenum shaderType);
 
-	/*
-	Creates a program and links it up with shaders. Also cleans up the shaders once linked.
-	@param vertexShaderID id of vertex shader
-	@param fragmentShaderID id of fragment shader
-	@return the ID of the program
-	*/
-	GLuint linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID, const GLchar* varyings[], int varyingsCount);
-	GLuint linkProgram(GLuint vertexShaderID, GLuint fragmentShaderID, GLuint geometryShaderID);
 
-	/*
-	Load image using libpng
-	@param path the path to the png file
-	@param imageData the vector of png_bytes to store the image data. Any data already existing in the
-	vector will be cleared out.
-	@return a pair of ints containing the width and height of the image respectively.
-	If there was an error, first will be set to -1. 
-	*/
-	std::pair<int, int> loadImage(const char* path, std::vector<png_byte>& imageData);
+
 
 	//Main render loop
 	void render();
 
 	void genScalarField();
 	GLuint genTriangleList();
-	GLuint genVertices(GLuint nPrimitives);
+	GLuint genVertices(GLuint in_nPrimitives);
 
 	//Event handlers
 	void handleKeyDownEvent(SDL_Keycode key);
@@ -114,8 +109,6 @@ private:
 	void handleMouseButtonUpEvent(Uint8 button);
 	void handleMouseMotionEvent(Sint32 xrel, Sint32 yrel);
 
-	//End and clean up the simulation and SDL+OpenGL
-	void shutdown();
 
 	//The window we'll be rendering too
 	SDL_Window* mWindow;
@@ -127,11 +120,12 @@ private:
 	SDL_Renderer *renderer;
 
 	//Shader Programs
-	GLuint mProgramFluid, mProgramStatic, mProgramDensity, mProgramTest, mProgramListTriangles, mProgramGenVertices;
-
+	//GLuint mProgramFluid, mProgramStatic, mProgramDensity, mProgramTest, mProgramListTriangles, mProgramGenVertices;
+	std::array<GLuint, Programs::SIZE> mPrograms;
 	//Vertex Array Object
 	GLuint mVAO;
 
+	/*
 	//Vertex Buffer Objects
 	GLuint mVBOs; //static draw VBO
 	GLuint mIBOs; //static draw indices
@@ -140,14 +134,17 @@ private:
 	GLuint mTBO; //transform feedback
 	GLuint mEdgeTableBO;
 	GLuint mTriTableBO;
-
-	//Textures
+	*/
+	std::array<GLuint, BufferObjects::SIZE> mBufferObjects;
+	/*
 	GLuint mCubeMap;
 	GLuint mEdgeTable;
 	GLuint mTriTable;
 	GLuint mParticleTexture;
 	GLuint mScalarFieldTexture;
-
+	*/
+	std::array<GLuint, Textures::SIZE> mTextures;
+	/*
 	//Uniform locations
 	GLint mUniformLocMVPf, mUniformLocMVPs; //MVP matrix for fluid and static shaders
 	GLint mUniformLocM;  // Model Matrix
@@ -160,6 +157,10 @@ private:
 	GLint mUniformRadiusSquared;
 	GLint mUniformSField;
 	GLint mUniformDimensions3D;
+	*/
+	std::array<GLint, Uniforms::SIZE> mUniforms;
+
+	GLuint mFrameBuffer;
 
 	//matrices
 	glm::mat4 mProjection, mView;
@@ -172,9 +173,7 @@ private:
 	GLuint mQuery;
 
 	//number of triangles in fluid vbo
-	GLuint nTriangles;
-	//std::vector of triangles that form the fluid. Vertices and normals interleaved. 
-	std::vector<TRIANGLE> mTriangles;
+	GLuint nVertices;
 
 	//Simulation
 	CFDSimulation mSim;

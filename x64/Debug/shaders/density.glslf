@@ -4,7 +4,6 @@ flat in int layer;
 
 uniform sampler2D particles;
 uniform int nParticles;
-uniform ivec2 dimensions;
 uniform float radiusSquared;
 
 out float density;

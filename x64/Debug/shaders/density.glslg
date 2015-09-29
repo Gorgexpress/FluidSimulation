@@ -5,8 +5,6 @@ layout(triangle_strip, max_vertices = 4) out;
 
 flat out int layer;
 
-uniform ivec2 dimensions;
-
 void main(){
 	layer = int(gl_in[0].gl_Position.x);
 	gl_Layer = layer;
