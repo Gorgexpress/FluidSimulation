@@ -64,7 +64,7 @@ const GLfloat STATIC_VERTICES[] = {
 
 
 const GLushort STATIC_INDICES[] = {
-	//cube
+	//cube (room)
 	0, 2, 1, 0, 3, 2,
 	4, 3, 0, 4, 7, 3,
 	4, 1, 5, 4, 0, 1,
@@ -159,51 +159,49 @@ void FluidSim::init(){
 }
 
 void FluidSim::initGL(){
-	//Compile the vertex and fragment shaders for the static shader program
+	//Start by creating all of our shader programs
+
+	//Room rendering program
 	GLuint vertexShaderID = util::compileShader(STATIC_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	GLuint fragmentShaderID = util::compileShader(STATIC_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
-
-	//Create the program and link the shaders to it
 	mPrograms[Programs::ROOM] = util::linkProgram(vertexShaderID, fragmentShaderID, 0);
-	//Compile the vertex and fragment shaders for the fluid shader program
+
+	//Fluid rendering program
 	vertexShaderID = util::compileShader(FLUID_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	fragmentShaderID = util::compileShader(FLUID_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
-
-	//Create the program and link the shaders to it
 	mPrograms[Programs::FLUID] = util::linkProgram(vertexShaderID, fragmentShaderID, 0);
 
-	//density
+	//Scalar Field generation
 	vertexShaderID = util::compileShader(DENSITY_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	fragmentShaderID = util::compileShader(DENSITY_FRAGMENT_SHADER_PATH, GL_FRAGMENT_SHADER);
 	GLuint geometryShaderID = util::compileShader(DENSITY_GEOMETRY_SHADER_PATH, GL_GEOMETRY_SHADER);
-	//Create the program and link the shaders to it
 	mPrograms[Programs::SFIELD] = util::linkProgram(vertexShaderID, fragmentShaderID, geometryShaderID);
 
-	
-	//list triangles
+	//Generate list of triangles
 	vertexShaderID = util::compileShader(LIST_TRIANGLES_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	geometryShaderID = util::compileShader(LIST_TRIANGLES_GEOMETRY_SHADER_PATH, GL_GEOMETRY_SHADER);
 	//Create the program and link the shaders to it
 	const GLchar* feedbackVaryings[] = { "z6_y6_x6_edge1_edge2_edge3" };
 	mPrograms[Programs::LIST_TRIANGLES] = util::linkProgram(vertexShaderID, 0, geometryShaderID, feedbackVaryings, 1);
 
-	//gen vertices
+	//Generate vertices and normals for our fluid
 	vertexShaderID = util::compileShader(GEN_VERTICES_VERTEX_SHADER_PATH, GL_VERTEX_SHADER);
 	geometryShaderID = util::compileShader(GEN_VERTICES_GEOMETRY_SHADER_PATH, GL_GEOMETRY_SHADER);
-	//Create the program and link the shaders to it
 	const GLchar* feedbackVaryings2[] = { "vnVertice",
 										  "vnNormal"};
 	mPrograms[Programs::GEN_VERTICES] = util::linkProgram(vertexShaderID, 0, geometryShaderID, feedbackVaryings2, 2);
 
-
+	//Iniitalize textures and GL objects
 	initGLTextures();
 	initGLObjects();
 
+	//set all uniform locations
 	getAllUniformLocations();
 
-	//initialize our quaternion
+	//initialize our rotation quaternion
 	mQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
-	//remove this later
+
+	//Initialize projection and view matrices, and the vec3 used for scaling.
 	mProjection = glm::perspective(45.0f, 4.0f / 3.0f, 0.1f, 1000.0f);
 	mView = glm::lookAt(
 		CAMERA_POS,
@@ -211,6 +209,8 @@ void FluidSim::initGL(){
 		glm::vec3(0.0f, 1.0f, 0.0f)
 		);
 	mScale = glm::vec3(1.0f, 1.0f, 1.0f);
+
+	//Enable depth test with GL_LESS depth func
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 
@@ -221,12 +221,14 @@ void FluidSim::initGLObjects(){
 	glGenVertexArrays(1, &mVAO);
 	glBindVertexArray(mVAO);
 
+	//Generate buffers
 	glGenBuffers(BufferObjects::SIZE, &mBufferObjects[0]);
-	//Initialize VBO for static vertices(wall and floor)
+
+	//Initialize VBO for static vertices(room containing the fluid)
 	glBindBuffer(GL_ARRAY_BUFFER, mBufferObjects[BufferObjects::ROOM_AB]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(STATIC_VERTICES), STATIC_VERTICES, GL_STATIC_DRAW);
 
-	//Initialize VBO for indices for static vertices
+	//Initialize element array buffer for indices into the above array buffer
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mBufferObjects[BufferObjects::ROOM_EB]);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(STATIC_INDICES), STATIC_INDICES, GL_STATIC_DRAW);
 
@@ -235,27 +237,27 @@ void FluidSim::initGLObjects(){
 	glBufferData(GL_ARRAY_BUFFER, sizeof(TRIANGLE) * 300000, nullptr, GL_DYNAMIC_COPY);
 	//glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(TRIANGLE) *mTriangles.size(), &mTriangles[0]);
 
-	//Initialize transform feedback vbo
+	//Initialize array buffer to hold the list of triangles to generate
 	glBindBuffer(GL_ARRAY_BUFFER, mBufferObjects[BufferObjects::TRIANGLE_LIST]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(GLuint) * (SIM_WIDTH) * (SIM_HEIGHT) * (SIM_DEPTH) * 5, nullptr, GL_DYNAMIC_COPY);
 
-
+	//Initialize texture buffer to hold the marching cubes lookup table triTable.
 	glBindBuffer(GL_TEXTURE_BUFFER, mBufferObjects[BufferObjects::TRI_TABLE]);
 	glBufferData(GL_TEXTURE_BUFFER, sizeof(LUTS::triTable), LUTS::triTable, GL_STATIC_READ);
 	glBindTexture(GL_TEXTURE_BUFFER, mTextures[Textures::TRI_TABLE]);
 	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32I, mBufferObjects[BufferObjects::TRI_TABLE]);
 
-
-	//initialize framebuffer and give its output texture to it
+	//initialize framebuffer and give its output texture to it, the output texture being the 3d scalar field texture.
 	glGenFramebuffers(1, &mFrameBuffer);
 	glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffer);
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, mTextures[Textures::SFIELD], 0);
 	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		throw  OpenGLException("fewfwfwef");
+		throw  OpenGLException("Error initializing framebuffer");
 	//set the list of draw buffers
 	GLenum drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
 	glDrawBuffers(1, drawBuffers);
 
+	//unbind framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	//Initialize Query Object
@@ -263,12 +265,15 @@ void FluidSim::initGLObjects(){
 }
 
 void FluidSim::initGLTextures(){
-	//Load floor texture
+
+	//Generate textures
+	glGenTextures(Textures::SIZE, &mTextures[0]);
+
+	//Load floor image
 	std::vector<png_byte> imageData;
 	util::dimensions2D dimensions = util::loadImage(TEXTURE_PATH, imageData);
 
-	//Initialize cube map
-	glGenTextures(Textures::SIZE, &mTextures[0]);
+	//Bind the cubemap texture and give it the floor image
 	glBindTexture(GL_TEXTURE_CUBE_MAP, mTextures[Textures::CUBE_MAP]);
 	glTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, 0, GL_RGB, dimensions.width, dimensions.height, 0, GL_RGB, GL_UNSIGNED_BYTE, &imageData[0]);
 
@@ -285,19 +290,15 @@ void FluidSim::initGLTextures(){
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	//Initialize buffer textures for our marching cube lookup tables
-
 
 
 	//Initialize texture to store particle positions
-
 	glBindTexture(GL_TEXTURE_2D, mTextures[Textures::PARTICLES]);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F_ARB, 10000, 1, 0, GL_RGB, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 	//Initialize texture to store scalar field
-
 	glBindTexture(GL_TEXTURE_3D, mTextures[Textures::SFIELD]);
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, SIM_WIDTH + 1, SIM_HEIGHT + 1, SIM_DEPTH + 1, 0, GL_RED, GL_FLOAT, nullptr);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -316,6 +317,7 @@ void FluidSim::getAllUniformLocations(){
 	mUniforms[Uniforms::SFIELD_RADIUS_SQUARED] = glGetUniformLocation(mPrograms[Programs::SFIELD], "radiusSquared");
 	mUniforms[Uniforms::LIST_TRIANGLES_SFIELD] = glGetUniformLocation(mPrograms[Programs::LIST_TRIANGLES], "sField");
 	mUniforms[Uniforms::LIST_TRIANGLES_DIMENSIONS] = glGetUniformLocation(mPrograms[Programs::LIST_TRIANGLES], "dimensions");
+	mUniforms[Uniforms::LIST_TRIANGLES_TRI_TABLE] = glGetUniformLocation(mPrograms[Programs::LIST_TRIANGLES], "triTable");
 	mUniforms[Uniforms::GEN_VERTICES_DIMENSIONS] = glGetUniformLocation(mPrograms[Programs::GEN_VERTICES], "dimensions");
 	mUniforms[Uniforms::GEN_VERTICES_SFIELD] = glGetUniformLocation(mPrograms[Programs::GEN_VERTICES], "sField");
 }
@@ -330,7 +332,7 @@ void FluidSim::render(){
 	glm::mat4 MVP = mProjection * mView * model;
 
 
-	//use our static shader program
+	//use our room shader program
 	glUseProgram(mPrograms[Programs::ROOM]);
 	//Clear Buffer
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -350,9 +352,10 @@ void FluidSim::render(){
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr); // vertices
 
-	//Bind IBO and draw the room
+	//Bind IBO
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mBufferObjects[BufferObjects::ROOM_EB]); 
 
+	//draw the room using all but the last 6 indices
 	glDrawElements(GL_TRIANGLES, (sizeof(STATIC_INDICES) / sizeof(GLushort)) - 6, GL_UNSIGNED_SHORT, nullptr);
 
 	//calculate MVP matrix for fluid
@@ -372,10 +375,11 @@ void FluidSim::render(){
 	GLint location = glGetUniformLocation(mPrograms[Programs::FLUID], "cameraPos");
 	glUniform3f(location, 10.0f, 15.0f, -30.0f);
 
-	glBindBuffer(GL_ARRAY_BUFFER, mBufferObjects[BufferObjects::FLUID]); //bind VBO for fluid vertices
+	//bind VBO for fluid vertices
+	glBindBuffer(GL_ARRAY_BUFFER, mBufferObjects[BufferObjects::FLUID]); 
 	//Set attrib pointers for vertices and normals
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat)*6, nullptr); 
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 6, (GLvoid*)(sizeof(GLfloat) * 3));
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat)*6, nullptr);  //vertices
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 6, (GLvoid*)(sizeof(GLfloat) * 3)); //normals
 
 	//Render fluid
 	glDrawArrays(GL_TRIANGLES, 0, nVertices * 2);
@@ -394,8 +398,11 @@ void FluidSim::genScalarField(){
 	//Render to framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, mFrameBuffer);
 	glViewport(0, 0, SIM_WIDTH + 1, SIM_HEIGHT + 1);
+
+	//Clear color buffer
 	glClear(GL_COLOR_BUFFER_BIT);
-	//use density shader program
+
+	//use the scalar field shader program
 	glUseProgram(mPrograms[Programs::SFIELD]);
 
 	//set uniforms
@@ -403,64 +410,56 @@ void FluidSim::genScalarField(){
 	glBindTexture(GL_TEXTURE_2D, mTextures[Textures::PARTICLES]);
 	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, mSim.markerParticles().size(), 1, GL_RGB, GL_FLOAT, &mSim.markerParticles()[0]);
 	glUniform1i(mUniforms[Uniforms::SFIELD_PARTICLES], 0);
-
 	glUniform1i(mUniforms[Uniforms::SFIELD_NUM_PARTICLES], mSim.markerParticles().size());
 	glUniform1f(mUniforms[Uniforms::SFIELD_RADIUS_SQUARED], 1.0f);
 
 	//draw
 	glDrawArrays(GL_POINTS, 0, SIM_DEPTH + 1);
 
+	//unbind framebuffer
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, mWidth, mHeight);
 
-	std::vector<GLfloat> dens((SIM_WIDTH + 1) * (SIM_HEIGHT + 1) * (SIM_DEPTH + 1));
-	glBindTexture(GL_TEXTURE_3D, mTextures[Textures::SFIELD]);
-	glGetTexImage(GL_TEXTURE_3D, 0, GL_RED, GL_FLOAT, &dens[0]);
-	int a = 0;
 }
 
 GLuint FluidSim::genTriangleList(){
 	//disable rasterizer
 	glEnable(GL_RASTERIZER_DISCARD);
-	glUseProgram(mPrograms[Programs::LIST_TRIANGLES]);
-	//Set uniforms
-	
 
+	//use the list triangles program
+	glUseProgram(mPrograms[Programs::LIST_TRIANGLES]);
+	
 	//set uniforms
 	glUniform3i(mUniforms[Uniforms::LIST_TRIANGLES_DIMENSIONS], SIM_WIDTH, SIM_HEIGHT, SIM_DEPTH); //dimensions
 	glActiveTexture(GL_TEXTURE0);
-
 	glBindTexture(GL_TEXTURE_3D, mTextures[Textures::SFIELD]);
 	glUniform1i(mUniforms[Uniforms::LIST_TRIANGLES_SFIELD], 0);  //3d texture containing the scalar field
-
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_BUFFER, mTextures[Textures::TRI_TABLE]);
-	GLint location = glGetUniformLocation(mPrograms[Programs::LIST_TRIANGLES], "triTable");
-	glUniform1i(location, 1);
-	//bind transform feedback buffer object. Only one tbo so we just use index 0.
+	glUniform1i(mUniforms[Uniforms::LIST_TRIANGLES_TRI_TABLE], 1);
+
+	//bind transform feedback buffer object. Only one tbo so we just use index 0. We are writing
+	//the list of triangles to the triangle list array buffer object
 	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, mBufferObjects[BufferObjects::TRIANGLE_LIST]);
 
-
-
-	//bind Uniform Buffer Object. Only one ubo so again we can just use index 0.
-	//end transform feedback mode using points
+	//Begin query for # of primitives written and begin transform feedback
 	glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, mQuery);
 	glBeginTransformFeedback(GL_POINTS);
 
-	//Draw call to write data into transform feedback buffer.
-	//Don't need input, just set the uniforms. One point for each position in scalar field grid.
+	//draw 
 	glDrawArrays(GL_POINTS, 0, (SIM_WIDTH) * (SIM_HEIGHT) * (SIM_DEPTH));
 
-	//end transform feedback, flush, and renable rasterization.
+	//end transform feedback and the query
 	glEndTransformFeedback();
 	glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+
+	//Get the number of primitives
 	GLuint nPrimitives;
 	glGetQueryObjectuiv(mQuery, GL_QUERY_RESULT, &nPrimitives);
+
+	//Flush and renable rasterization before returning the number of primitives drawn
 	glFlush();
 	glDisable(GL_RASTERIZER_DISCARD);
-
-
-	
 
 	return nPrimitives;
 
@@ -470,32 +469,42 @@ GLuint FluidSim::genVertices(GLuint in_nPrimitives){
 	//disable rasterizer
 	glEnable(GL_RASTERIZER_DISCARD);
 
+	//Use the fluid vertice generation program
 	glUseProgram(mPrograms[Programs::GEN_VERTICES]);
 
-	//uniforms
+	//set uniforms
 	glUniform3i(mUniforms[Uniforms::GEN_VERTICES_DIMENSIONS], SIM_WIDTH + 1, SIM_HEIGHT + 1, SIM_DEPTH + 1);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_3D, mTextures[Textures::SFIELD]);
 	glUniform1i(mUniforms[Uniforms::GEN_VERTICES_SFIELD], 0);  //3d texture containing the scalar field
 
-	//bind transform feedback buffer object. Only one tbo so we just use index 0.
+	//bind transform feedback buffer object. Only one tbo so we just use index 0. 
+	//We are writing the fluid vertices and normals to the fluid array buffer object.
 	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, mBufferObjects[BufferObjects::FLUID]);
 
-	//setup attribs
+	//enable attribs
 	glEnableVertexAttribArray(0);
 
+	//Bind our triangle list array buffer and set attrib 0 to point to it. 
 	glBindBuffer(GL_ARRAY_BUFFER, mBufferObjects[BufferObjects::TRIANGLE_LIST]);
 	glVertexAttribIPointer(0, 1, GL_UNSIGNED_INT,  0, 0);
 
+	//Begin transform feedback
 	glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, mQuery);
 	glBeginTransformFeedback(GL_POINTS);
+
 	//draw
 	glDrawArrays(GL_POINTS, 0, in_nPrimitives);
 
+	//End transform feedback
 	glEndTransformFeedback();
 	glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+
+	//Get number of output primitives
 	GLuint out_nPrimitives;
 	glGetQueryObjectuiv(mQuery, GL_QUERY_RESULT, &out_nPrimitives);
+
+	//Flush and renable rasterization before returning the number of primitives drawn
 	glFlush();
 	glDisable(GL_RASTERIZER_DISCARD);
 
@@ -585,7 +594,6 @@ void FluidSim::runSim(){
 		//Handle events on queue
 		while (SDL_PollEvent(&e) != 0)
 		{
-			//User requests quit
 			switch (e.type)
 			{
 			case SDL_QUIT:
@@ -613,6 +621,7 @@ void FluidSim::runSim(){
 		//Swap buffers
 		SDL_GL_SwapWindow(mWindow);
 
+		//Check if our simulation has finished updating. Join the thread if it is. 
 		if (mThreadSim.joinable()){
 			mThreadSim.join();
 			genScalarField();
