@@ -1,6 +1,6 @@
 # FluidSimulation
 
-Simple fluid simulation using SDL and OpenGL. 
+Simple fluid simulation using SDL and OpenGL. VS2013 project.
 Only setup to run when compiled as a 64 bit exe right now. 
 
 Currently just sets up the data structures for the simulation with some initial values, and renders it using marching cubes. 
