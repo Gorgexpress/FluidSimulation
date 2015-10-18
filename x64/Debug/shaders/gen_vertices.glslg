@@ -1,5 +1,5 @@
 #version 400 core
-
+//A pass through geometry shader
 struct vnpair{
 	vec3 vertex;
 	vec3 normal;

@@ -23,15 +23,13 @@ const int SIM_HEIGHT = 25;
 const int SIM_DEPTH = 25;
 
 //Constant for file paths to shaders
-const char* STATIC_VERTEX_SHADER_PATH = "shaders/static.glslv";
-const char* STATIC_FRAGMENT_SHADER_PATH = "shaders/static.glslf";
-const char* FLUID_VERTEX_SHADER_PATH = "shaders/cube_150.glslv";
-const char* FLUID_FRAGMENT_SHADER_PATH = "shaders/cube_150.glslf";
+const char* STATIC_VERTEX_SHADER_PATH = "shaders/room.glslv";
+const char* STATIC_FRAGMENT_SHADER_PATH = "shaders/room.glslf";
+const char* FLUID_VERTEX_SHADER_PATH = "shaders/fluid.glslv";
+const char* FLUID_FRAGMENT_SHADER_PATH = "shaders/fluid.glslf";
 const char* DENSITY_VERTEX_SHADER_PATH = "shaders/density.glslv";
 const char* DENSITY_FRAGMENT_SHADER_PATH = "shaders/density.glslf";
 const char* DENSITY_GEOMETRY_SHADER_PATH = "shaders/density.glslg";
-const char* TEST_VERTEX_SHADER_PATH = "shaders/test.glslv";
-const char* TEST_FRAGMENT_SHADER_PATH = "shaders/test.glslf";
 const char* LIST_TRIANGLES_VERTEX_SHADER_PATH = "shaders/list_triangles.glslv";
 const char* LIST_TRIANGLES_GEOMETRY_SHADER_PATH = "shaders/list_triangles.glslg";
 const char* GEN_VERTICES_VERTEX_SHADER_PATH = "shaders/gen_vertices.glslv";

@@ -10,6 +10,6 @@ uniform mat4 MVP;
 void main(){	
 	// Output position of the vertex, in clip space : MVP * position
 	gl_Position =  MVP * vec4(position,1);
-	
+	//UV can use same value as position in this case
 	UV = position;
 }

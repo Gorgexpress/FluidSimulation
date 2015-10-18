@@ -1,5 +1,7 @@
 #version 400 core
 
+//This geo shader just draws a quad over the whole screen, so the fragment shader
+//applies to every pixel for this layer.
 layout(points) in;
 layout(triangle_strip, max_vertices = 4) out;
 

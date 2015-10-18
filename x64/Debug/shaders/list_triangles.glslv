@@ -1,17 +1,19 @@
 #version 400 core
-
+//upper 6 bits are z value of position, next 6 is y position, etc...
 out uint z6_y6_x6_null6_cubeIndex8;
 
-uniform sampler3D sField;
-uniform ivec3 dimensions;
+uniform sampler3D sField; //scalar field
+uniform ivec3 dimensions; //fluid dimensions
 
 void main(){	
+	//Calculate grid position using gl_VertexID since we need to iterate over every position.
+	//Avoids having to send more info from cpu to gpu.
 	ivec3 gridPosition;
 	gridPosition.x = gl_VertexID % dimensions.x;
 	gridPosition.y = (gl_VertexID / dimensions.x) % dimensions.y;
 	gridPosition.z = ((gl_VertexID / dimensions.x) / dimensions.y ) % dimensions.z;
 	
-	
+	//density for each corner of the cell.
 	float density[8];
 	density[0] = texelFetch(sField, gridPosition + ivec3(0, 0, 1), 0).r;
 	density[1] = texelFetch(sField, gridPosition + ivec3(1, 0, 1), 0).r;

@@ -6,12 +6,13 @@ layout(points, max_vertices = 5) out;
 in uint z6_y6_x6_null6_cubeIndex8[];
 flat out uint z6_y6_x6_edge1_edge2_edge3;
 
-uniform isamplerBuffer triTable;
+uniform isamplerBuffer triTable; //standard TriTable lookup table for marching cubes
 
 void main(){
 	uint cubeIndex = z6_y6_x6_null6_cubeIndex8[0] & 0xFF;
 	uint z6_y6_x6_null14 = z6_y6_x6_null6_cubeIndex8[0] & 0xFFFFFF00;
-	if (cubeIndex * (255 - cubeIndex) > 0)
+	//only false if position is completely inside or outside the fluid.
+	if (cubeIndex * (255 - cubeIndex) > 0) 
 	{
 		int offset = int(16 * cubeIndex);
 		for(int i = 0; texelFetch(triTable, offset + i).r != -1; i += 3) 

@@ -6,17 +6,19 @@ struct vnpair{
 	vec3 normal;
 };
 
-// Input vertex data, different for all executions of this shader.
+//upper 6 bits are the z value for the position, followed by 6 bits for the y value, etc...
+//edge equals the marching cubes edge case. Can be between 0 and 11.
 layout(location = 0) in uint z6_y6_x6_edge1_edge2_edge3;
 
-uniform sampler3D sField;
-uniform ivec3 dimensions;
+uniform sampler3D sField; //scalar field
+uniform ivec3 dimensions; //dimensions of fluid
 
 out vertexData
 {
 	vnpair vertices[3];
 }vdata;
 
+//Gradient calculation that does not check bounds. 
 /*
 vec3 Gradient(ivec3 p)
 {
@@ -26,10 +28,11 @@ vec3 Gradient(ivec3 p)
 				* 0.5;
 }*/
 
+//Gradient calculation with bounds checking. Out of bounds values have a density of 0.
 vec3 Gradient(ivec3 p)
 {
 	vec3 grad;
-	float positive, negative;
+	float positive, negative; //positive direction and negative direction
 	if(p.x != dimensions.x)
 		positive = texelFetch(sField, p + ivec3(1, 0, 0), 0).r;
 	else
@@ -59,9 +62,12 @@ vec3 Gradient(ivec3 p)
 	else
 		negative = 0.0f;
 	grad.z = positive - negative;
-	return grad * 0.5f;
+	//multiply grad by 0.5 divided by size of an individual cell.
+	return grad * 0.5f; 
 }
 
+//Interpolate between 2 points for marching cubes
+//Taken from Paul Bourke's example, but also computes normals at the same time as the fluid vertex.
 vnpair VertexInterp(ivec3 p1, ivec3 p2){
 	float valp1 = texelFetch(sField, p1, 0);
 	float valp2 = texelFetch(sField, p2, 0);
@@ -105,6 +111,11 @@ void main(){
 							   (z6_y6_x6_edge1_edge2_edge3 >> 20) & 0x3F,
 							   (z6_y6_x6_edge1_edge2_edge3 >> 26) & 0x3F);
 	uint edgeCase = (z6_y6_x6_edge1_edge2_edge3 >> 8) & 0xF;
+	
+	//Find the final fluid vertex and normal values using interpolations, according to
+	//the edge case.
+	//The code below repeats 3 times. Once for each vertex normal pair to output. 
+    //Keeping it in  a loop caused problems, so it was manually unrolled.
 	switch (edgeCase)
 	{
 		case 0:
