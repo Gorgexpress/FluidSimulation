@@ -12,13 +12,15 @@ CFDSimulation::CFDSimulation(){
 			{
 				mFluid[Index(x, y, z)] = true;
 				mMarkerParticles.push_back(glm::vec3(x + 0.5f , y + 0.5f, z + 0.5f));
+				mVelocity[Index(x, y, z)] = glm::vec3(0.0f, 200.0f, 0.0f);
 				
 			}
-	mVelocity[Index(10, 10, 15)] = glm::vec3(10.0f,5.0f,0.0f);
-	mVelocity[Index(10, 10, 14)] = glm::vec3(10.0f, 5.0f, 0.0f);
-	mVelocity[Index(10, 10, 13)] = glm::vec3(10.0f, 5.0f, 0.0f);
-	mVelocity[Index(10, 11, 14)] = glm::vec3(10.0f, 5.0f, 0.0f);
-	mVelocity[Index(10, 12, 13)] = glm::vec3(10.0f, 5.0f, 0.0f);
+
+
+
+	
+
+
 	
 }
 
@@ -28,10 +30,20 @@ CFDSimulation::CFDSimulation(int width, int height, int depth){
 }
 
 void CFDSimulation::update(float dt){
+	/*
 	updateParticles(dt);
+	diffuseVelocity();
 	advectVelocity(dt);
 	diffuseVelocity();
 	project();
+	*/
+	determineFluidCells();
+	applyForces(dt);
+	diffuseVelocity();
+	project();
+	advectVelocity(dt);
+	project();
+	updateParticles(dt);
 }
 
 void CFDSimulation::updateParticles(float dt)
@@ -43,7 +55,6 @@ void CFDSimulation::updateParticles(float dt)
 		p = newPosition;
 
 	}
-	int i = 0;
 }
 void CFDSimulation::resize(int width, int height, int depth){
 	//Set the width, height, and depth
@@ -118,7 +129,7 @@ void CFDSimulation::diffuseVelocity(){
 						+ (mVelocity[Index(x, y + 1, z)].y - mVelocity[Index(x, y - 1, z)].y)
 						+ (mVelocity[Index(x, y, z + 1)].z - mVelocity[Index(x, y, z - 1)].z)) / 2.0f;
 					//Calculate the updated velocity and place it in the buffer.
-					mVelocityBuffer[Index(x, y, z)] = (mVelocity[Index(x + 1, y, z)] + mVelocity[Index(x - 1, y, z)]
+					mVelocity[Index(x, y, z)] = (mVelocity[Index(x + 1, y, z)] + mVelocity[Index(x - 1, y, z)]
 						+ mVelocity[Index(x, y + 1, z)] + mVelocity[Index(x, y - 1, z)]
 						+ mVelocity[Index(x, y, z + 1)] + mVelocity[Index(x, y, z - 1)]
 						- divergence) / 6.0f;
@@ -126,7 +137,7 @@ void CFDSimulation::diffuseVelocity(){
 
 				}
 		//swap with buffer
-		mVelocity.swap(mVelocityBuffer);
+		//mVelocity.swap(mVelocityBuffer);
 		
 		//Enforce boundary conditions on velocity
 		setBoundariesVelocity(mVelocity);
@@ -223,12 +234,13 @@ void CFDSimulation::project(){
 			for (int y = 1; y < mHeight - 1; ++y)
 				for (int z = 1; z < mDepth - 1; ++z)
 				{
-					mBuffer2[Index(x, y, z)] = (mPressure[Index(x + 1, y, z)] + mPressure[Index(x - 1, y, z)]
+					mPressure[Index(x, y, z)] = (mPressure[Index(x + 1, y, z)] + mPressure[Index(x - 1, y, z)]
 						+ mPressure[Index(x, y + 1, z)] + mPressure[Index(x, y - 1, z)]
 						+ mPressure[Index(x, y, z + 1)] + mPressure[Index(x, y, z - 1)]
 						- mBuffer[Index(x, y, z)]) / 6.0f;
 				}
-		mPressure.swap(mBuffer2);
+		//mPressure.swap(mBuffer2);
+		setBoundariesPressure(mPressure);
 	}
 
 	for (int x = 1; x < mWidth - 1; ++x)
@@ -334,5 +346,22 @@ void CFDSimulation::setBoundariesPressure(std::vector<float>& pressure){
 	pressure[Index(mWidth - 1, 0, mDepth - 1)] = (pressure[Index(mWidth - 2, 0, mDepth - 1)] + pressure[Index(mWidth - 1, 1, mDepth - 1)] + pressure[Index(mWidth - 1, 0, mWidth - 2)]) / 3.0f;
 	pressure[Index(0, mHeight - 1, mDepth - 1)] = (pressure[Index(1, mHeight - 1, mDepth - 1)] + pressure[Index(0, mHeight - 2, mDepth - 1)] + pressure[Index(0, mHeight - 1, mDepth - 2)]) / 3.0f;
 	pressure[Index(mWidth - 1, mHeight - 1, mDepth - 1)] = (pressure[Index(mWidth - 2, mHeight - 1, mDepth - 1)] + pressure[Index(mWidth - 1, mHeight - 2, mDepth - 1)] + pressure[Index(mWidth - 1, mHeight - 1, mDepth - 2)]) / 3.0f;
+}
+
+void CFDSimulation::determineFluidCells() {
+	mFluid.assign(mFluid.size(), false);
+	for (auto &p : mMarkerParticles)
+	{
+		mFluid[Index(p.x, p.y, p.z)] = true;
+
+	}
+}
+
+void CFDSimulation::applyForces(float dt) {
+	for (int x = 1; x < mWidth - 1; ++x)
+		for (int y = 1; y < mHeight; ++y)
+			for (int z = 1; z < mDepth - 1; ++z)
+				if(mFluid[Index(x, y, z)]) 
+					mVelocity[Index(x, y, z)].y += dt * -9.8f;
 }
 

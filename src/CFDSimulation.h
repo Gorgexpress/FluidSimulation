@@ -17,6 +17,7 @@ public:
 	CFDSimulation();
 	CFDSimulation(int width, int height, int depth);
 	void update(float dt);
+	void resize(int width, int height, int depth);
 	const std::vector<glm::vec3>& markerParticles() const { return mMarkerParticles; }
 private:
 	std::vector<glm::vec3> mVelocity, mVelocityBuffer;
@@ -25,7 +26,7 @@ private:
 	std::vector<bool> mFluid;
 	int mWidth, mHeight, mDepth;
 
-	void resize(int width, int height, int depth);
+	//void resize(int width, int height, int depth);
 	void updateParticles(float dt);
 	void advectVelocity(float dt);
 	void diffuseVelocity();
@@ -34,6 +35,8 @@ private:
 	void setBoundariesPressure(std::vector<float>& pressure);
 	void advectQuantity(std::vector<float>& q, float dt);
 	void diffuseQuantity(std::vector<float>& q);
+	void determineFluidCells();
+	void applyForces(float dt);
 	inline unsigned int Index(int x, int y, int z){
 		return x + y * mDepth + z * mWidth * mHeight;
 	}

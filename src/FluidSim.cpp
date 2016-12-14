@@ -140,7 +140,6 @@ void FluidSim::init(){
 	glGetError(); //discard single 1280 error that glew always causes on initialization
 
 	
-	//Initialize our sim, we arent gonna update it yet so just get whatever info we need right away
 	//Initialize OpenGL
 	initGL();
 
@@ -150,7 +149,8 @@ void FluidSim::init(){
 
 	//Perform steps necessary to populate the VBO used to hold fluid vertices so we can render the fluid.
 	genScalarField();
-	mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.5f);
+	mThreadSimRunning = true;
+	mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
 	GLuint nPrimitives = genTriangleList();
 	nVertices = genVertices(nPrimitives);
 	
@@ -528,9 +528,17 @@ void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 			mScale.z -= 0.1f;
 		}
 		break;
-	case SDLK_n: //update simulation
-	
+	case SDLK_n:   //update simulation
+		if(!mAutoRun && !mThreadSimRunning){
+			mThreadSimRunning = true;
+			mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
+			GLuint nPrimitives = genTriangleList();
+			nVertices = genVertices(nPrimitives);
+		}
 		break;
+	case SDLK_m:
+		mAutoRun = !mAutoRun;
+	
 	case SDLK_q:
 		glBindTexture(GL_TEXTURE_2D, mTextures[Textures::PARTICLES]);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, mSim.markerParticles().size(), 1, GL_RGB, GL_FLOAT, &mSim.markerParticles()[0]);
@@ -618,10 +626,16 @@ void FluidSim::runSim(){
 
 		//Swap buffers
 		SDL_GL_SwapWindow(mWindow);
-
+		if (mAutoRun && !mThreadSimRunning) {
+			mThreadSimRunning = true;
+			mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
+			GLuint nPrimitives = genTriangleList();
+			nVertices = genVertices(nPrimitives);
+		}
 		//Check if our simulation has finished updating. Join the thread if it is. 
 		if (mThreadSim.joinable()){
 			mThreadSim.join();
+			mThreadSimRunning = false;
 			genScalarField();
 		}
 	}

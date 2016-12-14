@@ -183,5 +183,11 @@ private:
 	int mWidth, mHeight;
 
 	std::thread mThreadSim;
+
+	//true if the above thread is currently running.
+	bool mThreadSimRunning;
+
+	//true if simulation should run automatically
+	bool mAutoRun;
 };
 #endif
