@@ -318,6 +318,7 @@ int Polygonise(std::unordered_map<glm::vec3, double, vec3Hash>& isoSurface, GRID
 	/*
 	Determine the index into the edge table which
 	tells us which vertices are inside of the surface
+	grid.val is the value of the scalar field for all 8 corners
 	*/
 	cubeindex = 0;
 	if (grid.val[0] < isolevel) cubeindex |= 1;

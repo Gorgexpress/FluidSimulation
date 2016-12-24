@@ -153,6 +153,7 @@ void FluidSim::init(){
 	mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
 	GLuint nPrimitives = genTriangleList();
 	nVertices = genVertices(nPrimitives);
+	mAutoRun = true;
 	
 }
 
@@ -620,23 +621,22 @@ void FluidSim::runSim(){
 				;
 			}
 		}
-
 		//Render
 		render();
-
 		//Swap buffers
 		SDL_GL_SwapWindow(mWindow);
 		if (mAutoRun && !mThreadSimRunning) {
 			mThreadSimRunning = true;
-			mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
 			GLuint nPrimitives = genTriangleList();
 			nVertices = genVertices(nPrimitives);
 		}
 		//Check if our simulation has finished updating. Join the thread if it is. 
 		if (mThreadSim.joinable()){
+
 			mThreadSim.join();
 			mThreadSimRunning = false;
 			genScalarField();
+
 		}
 	}
 }
