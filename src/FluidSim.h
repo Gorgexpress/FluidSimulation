@@ -5,6 +5,7 @@
 #undef main //main is defined in SDL, which will interfere with our main method if not undefined
 #include <GL/glew.h>
 #include <libpng\png.h>
+#include <iostream>
 #include <SDL/SDL_opengl.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -183,5 +184,12 @@ private:
 	int mWidth, mHeight;
 
 	std::thread mThreadSim;
+
+	//true if the above thread is currently running.
+	bool mThreadSimRunning;
+
+	//true if simulation should run automatically
+	bool mAutoRun;
+
 };
 #endif

@@ -1,0 +1,22 @@
+#version 400 core
+
+//This geo shader just draws a quad over the whole screen, so the fragment shader
+//applies to every pixel for this layer.
+layout(points) in;
+layout(triangle_strip, max_vertices = 4) out;
+
+flat out int layer;
+
+void main(){
+	layer = int(gl_in[0].gl_Position.x);
+	gl_Layer = layer;
+	gl_Position = vec4(-1.0, -1.0, 0.0, 1.0);
+	EmitVertex();
+	gl_Position = vec4(1.0, -1.0, 0.0, 1.0);
+	EmitVertex();
+	gl_Position = vec4(-1.0, 1.0, 0.0, 1.0);
+	EmitVertex();
+	gl_Position = vec4(1.0, 1.0, 0.0, 1.0);
+	EmitVertex();
+	EndPrimitive();
+}

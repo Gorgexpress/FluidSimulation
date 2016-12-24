@@ -5,6 +5,13 @@
 #include <vector>
 #include <libpng/png.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <sys/time.h>
+#include <ctime>
+#endif
+
 namespace util{
 
 	//structure used to contain with and height of an image
@@ -49,5 +56,7 @@ namespace util{
 	If there was an error, first will be set to -1.
 	*/
 	dimensions2D loadImage(const char* path, std::vector<png_byte>& imageData);
+
+	uint64_t GetTimeMs64();
 }
 #endif
