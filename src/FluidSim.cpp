@@ -17,6 +17,9 @@
 const int DEFAULT_WINDOW_WIDTH = 640;
 const int DEFAULT_WINDOW_HEIGHT = 480;
 
+//timestep
+const float TIMESTEP = 0.0025f;
+
 //constants for fluid simulation dimensions
 const int SIM_WIDTH = 25;
 const int SIM_HEIGHT = 25;
@@ -150,7 +153,7 @@ void FluidSim::init(){
 	//Perform steps necessary to populate the VBO used to hold fluid vertices so we can render the fluid.
 	genScalarField();
 	mThreadSimRunning = true;
-	mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
+	mThreadSim = std::thread(&CFDSimulation::update, &mSim, TIMESTEP);
 	GLuint nPrimitives = genTriangleList();
 	nVertices = genVertices(nPrimitives);
 	mAutoRun = false;
@@ -532,7 +535,7 @@ void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 	case SDLK_n:   //update simulation
 		if(!mAutoRun && !mThreadSimRunning){
 			mThreadSimRunning = true;
-			mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
+			mThreadSim = std::thread(&CFDSimulation::update, &mSim, TIMESTEP);
 			GLuint nPrimitives = genTriangleList();
 			nVertices = genVertices(nPrimitives);
 		}
@@ -628,7 +631,7 @@ void FluidSim::runSim(){
 		SDL_GL_SwapWindow(mWindow);
 		if (mAutoRun && !mThreadSimRunning) {
 			mThreadSimRunning = true;
-			mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
+			mThreadSim = std::thread(&CFDSimulation::update, &mSim, TIMESTEP);
 			GLuint nPrimitives = genTriangleList();
 			nVertices = genVertices(nPrimitives);
 		}

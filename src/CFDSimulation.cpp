@@ -12,8 +12,15 @@ CFDSimulation::CFDSimulation(){
 			{
 				mFluid[Index(x, y, z)] = true;
 				mMarkerParticles.push_back(glm::vec3(x + 0.5f , y + 0.5f, z + 0.5f));
-				mVelocity[Index(x, y, z)] = glm::vec3(0.0f, 25.0f, 0.0f);
 				
+			}
+
+	for (int x = 5; x < mWidth - 5; ++x)
+		for (int y = 5; y < 15; ++y)
+			for (int z = 5; z < mDepth - 5; ++z)
+			{
+				mVelocity[Index(x, y, z)] = glm::vec3(0.0f, 50.0f, 0.0f);
+
 			}
 
 
