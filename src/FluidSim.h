@@ -191,5 +191,7 @@ private:
 	//true if simulation should run automatically
 	bool mAutoRun;
 
+	int counter;
+
 };
 #endif

@@ -12,7 +12,7 @@ CFDSimulation::CFDSimulation(){
 			{
 				mFluid[Index(x, y, z)] = true;
 				mMarkerParticles.push_back(glm::vec3(x + 0.5f , y + 0.5f, z + 0.5f));
-				mVelocity[Index(x, y, z)] = glm::vec3(0.0f, 200.0f, 0.0f);
+				mVelocity[Index(x, y, z)] = glm::vec3(0.0f, 25.0f, 0.0f);
 				
 			}
 
@@ -237,7 +237,7 @@ void CFDSimulation::project(){
 					mPressure[Index(x, y, z)] = (mPressure[Index(x + 1, y, z)] + mPressure[Index(x - 1, y, z)]
 						+ mPressure[Index(x, y + 1, z)] + mPressure[Index(x, y - 1, z)]
 						+ mPressure[Index(x, y, z + 1)] + mPressure[Index(x, y, z - 1)]
-						- mBuffer[Index(x, y, z)]) / 6.0f;
+						+ mBuffer[Index(x, y, z)]) / 6.0f;
 				}
 		//mPressure.swap(mBuffer2);
 		setBoundariesPressure(mPressure);
@@ -359,7 +359,7 @@ void CFDSimulation::determineFluidCells() {
 
 void CFDSimulation::applyForces(float dt) {
 	for (int x = 1; x < mWidth - 1; ++x)
-		for (int y = 1; y < mHeight; ++y)
+		for (int y = 1; y < mHeight - 1; ++y)
 			for (int z = 1; z < mDepth - 1; ++z)
 				if(mFluid[Index(x, y, z)]) 
 					mVelocity[Index(x, y, z)].y += dt * -9.8f;

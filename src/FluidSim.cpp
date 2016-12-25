@@ -153,7 +153,7 @@ void FluidSim::init(){
 	mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
 	GLuint nPrimitives = genTriangleList();
 	nVertices = genVertices(nPrimitives);
-	mAutoRun = true;
+	mAutoRun = false;
 	
 }
 
@@ -539,6 +539,7 @@ void FluidSim::handleKeyDownEvent(SDL_Keycode key){
 		break;
 	case SDLK_m:
 		mAutoRun = !mAutoRun;
+		if (!mAutoRun) std::cout << counter << std::endl;
 	
 	case SDLK_q:
 		glBindTexture(GL_TEXTURE_2D, mTextures[Textures::PARTICLES]);
@@ -627,6 +628,7 @@ void FluidSim::runSim(){
 		SDL_GL_SwapWindow(mWindow);
 		if (mAutoRun && !mThreadSimRunning) {
 			mThreadSimRunning = true;
+			mThreadSim = std::thread(&CFDSimulation::update, &mSim, 0.01f);
 			GLuint nPrimitives = genTriangleList();
 			nVertices = genVertices(nPrimitives);
 		}
@@ -634,6 +636,7 @@ void FluidSim::runSim(){
 		if (mThreadSim.joinable()){
 
 			mThreadSim.join();
+			counter++;
 			mThreadSimRunning = false;
 			genScalarField();
 
