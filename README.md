@@ -16,8 +16,5 @@ uses the implementation from Paul Bourke's Polygonising a scalar field, modified
 
 ![alt tag](https://raw.github.com/Gorgexpress/FluidSimulation/master/images/cubeofwater.png)
 
-
-https://drive.google.com/open?id=0B6fce0NdMibEaFhaTG9QTTNoekE
-
-
-https://drive.google.com/open?id=0B6fce0NdMibENHlfVmE3bUNyam8
+short vid
+https://www.youtube.com/watch?v=Qs7bDMjAVd8
